@@ -1836,7 +1836,7 @@ bool DRW_Header::parseDwg(DRW::Version version, dwgBuffer *buf, dwgBuffer *hBbuf
     if (version < DRW::AC1015) {//pre 2000
         vars["WIREFRAME"]=new DRW_Variant(70, buf->getBit());
     }
-    vars["TILEMODE"]=new DRW_Variant(70, buf->getBit());
+    vars["$TILEMODE"]=new DRW_Variant(70, buf->getBit());
     vars["PLIMCHECK"]=new DRW_Variant(70, buf->getBit());
     vars["VISRETAIN"]=new DRW_Variant(70, buf->getBit());
     if (version < DRW::AC1015) {//pre 2000

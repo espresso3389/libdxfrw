@@ -75,11 +75,16 @@ public:
     bool writeDimension(DRW_Dimension *ent);
     void setEllipseParts(int parts){elParts = parts;} /*!< set parts number when convert ellipse to polyline */
     bool writePlotSettings(DRW_PlotSettings *ent);
+    void setLayouts(const std::vector<DRW_Layout>& values) {
+        layouts.clear();
+        for (const auto& layout : values) layouts.push_back(layout);
+    }
 
     DRW::Version getVersion() const;
     DRW::error getError() const;
 
 private:
+    std::vector<DRW_Layout> layouts;
     /// used by read() to parse the content of the file
     bool processDxf();
     bool processHeader();

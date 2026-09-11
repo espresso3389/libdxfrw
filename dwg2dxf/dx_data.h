@@ -58,6 +58,7 @@ public:
     std::list<DRW_Vport>VPorts;         //stores a copy of all vports
     std::list<DRW_Textstyle>textStyles; //stores a copy of all text styles
     std::list<DRW_AppId>appIds;         //stores a copy of all line types
+    std::vector<DRW_Layout>layouts;
     std::list<dx_ifaceBlock*>blocks;    //stores a copy of all blocks and the entities in it
     std::list<dx_ifaceImg*>images;      //temporary list to find images for link with DRW_ImageDef. Do not delete it!!
 

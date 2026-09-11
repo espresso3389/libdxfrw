@@ -57,6 +57,7 @@ bool dx_iface::fileImport(const std::string& fileI, dx_data *fData, bool debug){
 bool dx_iface::fileExport(const std::string& file, DRW::Version v, bool binary, dx_data *fData, bool debug){
     cData = fData;
     dxfW = new dxfRW(file.c_str());
+    dxfW->setLayouts(cData->layouts);
     if (debug) {
         dxfW->setDebug(DRW::DebugLevel::Debug);
     }

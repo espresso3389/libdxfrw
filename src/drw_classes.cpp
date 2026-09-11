@@ -27,6 +27,7 @@ bool DRW_Class::parseDwg(DRW::Version version, dwgBuffer *buf, dwgBuffer *strBuf
     appName = strBuf->getVariableText(version, false);
     className = strBuf->getVariableText(version, false);
     recName = strBuf->getVariableText(version, false);
+    while (!recName.empty() && recName.back() == '\0') recName.pop_back();
 
     DRW_DBG("\napp name: "); DRW_DBG(appName.c_str());
     DRW_DBG("\nclass name: "); DRW_DBG(className.c_str());

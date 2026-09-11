@@ -485,6 +485,23 @@ public:
 *  Class to handle plot settings object entries
 *  @author baranovskiykonstantin@gmail.com
 */
+// Named model/paper layouts and their plot settings, kept separate from blocks.
+class DRW_Layout : public DRW_TableEntry {
+    SETOBJFRIENDS
+public:
+    duint32 blockHandle = 0;
+    UTF8STRING blockName;
+    int tabOrder = 0;
+    std::map<int, double> plotDoubles;
+    std::map<int, int> plotInts;
+    std::map<int, UTF8STRING> plotStrings;
+    std::map<int, DRW_Coord> coordinates;
+    double ucsElevation = 0;
+    int ucsOrthoView = 0;
+protected:
+    bool parseDwg(DRW::Version version, dwgBuffer *buf, duint32 bs=0) override;
+};
+
 class DRW_PlotSettings : public DRW_TableEntry {
     SETOBJFRIENDS
 public:
@@ -802,4 +819,3 @@ const unsigned char dxfColors[][3] = {
 #endif
 
 // EOF
-

@@ -52,6 +52,9 @@ public:
     virtual void addAppId(const DRW_AppId& data){
         cData->appIds.push_back(data);
     }
+    virtual void addLayout(const DRW_Layout& data){
+        if (cData->layouts.size() < 64) cData->layouts.push_back(data);
+    }
 
     //blocks
     virtual void addBlock(const DRW_Block& data){

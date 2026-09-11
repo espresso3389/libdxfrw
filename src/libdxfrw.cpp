@@ -172,6 +172,8 @@ bool dxfRW::writeEntity(DRW_Entity *ent) {
         writer->writeUtf8Caps(6, ent->lineType);
     }
     writer->writeInt16(62, ent->color);
+    if (!ent->visible)
+        writer->writeInt16(60, 1);
     if (version > DRW::AC1009 && ent->ltypeScale != 1.0)
         writer->writeDouble(48, ent->ltypeScale);
     if (version > DRW::AC1015 && ent->color24 >= 0) {
@@ -1847,6 +1849,11 @@ bool dxfRW::writeBlocks() {
 }
 
 bool dxfRW::writeObjects() {
+    std::vector<std::pair<const DRW_Layout*, int>> namedLayouts;
+    for (const auto& layout : layouts)
+        if (blockMap.find(layout.blockName) != blockMap.end())
+            namedLayouts.push_back({&layout, ++entCount});
+    const int layoutDictionary = namedLayouts.empty() ? 0 : ++entCount;
     writer->writeString(0, "DICTIONARY");
     std::string imgDictH;
     writer->writeString(5, "C");
@@ -1857,6 +1864,10 @@ bool dxfRW::writeObjects() {
     writer->writeInt16(281, 1);
     writer->writeString(3, "ACAD_GROUP");
     writer->writeString(350, "D");
+    if (layoutDictionary) {
+        writer->writeString(3, "ACAD_LAYOUT");
+        writer->writeString(350, toHexStr(layoutDictionary));
+    }
     if (imageDef.size() != 0) {
         writer->writeString(3, "ACAD_IMAGE_DICT");
         imgDictH = toHexStr(++entCount);
@@ -1921,6 +1932,39 @@ bool dxfRW::writeObjects() {
        imageDef.pop_back();
     }
 
+    if (layoutDictionary) {
+        writer->writeString(0, "DICTIONARY");
+        writer->writeString(5, toHexStr(layoutDictionary));
+        writer->writeString(330, "C");
+        writer->writeString(100, "AcDbDictionary");
+        writer->writeInt16(281, 1);
+        for (const auto& entry : namedLayouts) {
+            writer->writeUtf8String(3, entry.first->name);
+            writer->writeString(350, toHexStr(entry.second));
+        }
+        for (const auto& entry : namedLayouts) {
+            const auto& layout = *entry.first;
+            writer->writeString(0, "LAYOUT");
+            writer->writeString(5, toHexStr(entry.second));
+            writer->writeString(330, toHexStr(layoutDictionary));
+            writer->writeString(100, "AcDbPlotSettings");
+            for (const auto& tag : layout.plotStrings) writer->writeUtf8String(tag.first, tag.second);
+            for (const auto& tag : layout.plotInts) writer->writeInt16(tag.first, tag.second);
+            for (const auto& tag : layout.plotDoubles) writer->writeDouble(tag.first, tag.second);
+            writer->writeString(100, "AcDbLayout");
+            writer->writeUtf8String(1, layout.name);
+            writer->writeInt16(70, layout.flags);
+            writer->writeInt16(71, layout.tabOrder);
+            for (const auto& tag : layout.coordinates) {
+                writer->writeDouble(tag.first, tag.second.x);
+                writer->writeDouble(tag.first + 10, tag.second.y);
+                if (tag.first >= 12) writer->writeDouble(tag.first + 20, tag.second.z);
+            }
+            writer->writeDouble(146, layout.ucsElevation);
+            writer->writeInt16(76, layout.ucsOrthoView);
+            writer->writeString(330, toHexStr(blockMap.at(layout.blockName)));
+        }
+    }
     iface->writeObjects();
 
     return true;

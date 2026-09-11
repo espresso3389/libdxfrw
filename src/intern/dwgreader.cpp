@@ -771,6 +771,10 @@ bool dwgReader::readDwgBlocks(DRW_Interface& intfa, dwgBuffer *dbuf){
         ret2 = bk.parseDwg(version, &buff, bs);
         ret = ret && ret2;
         parseAttribs(&bk);
+        // Pre-2007 strings may include their terminator. Space names must match
+        // the canonical DXF records, otherwise layouts point at empty duplicates.
+        if (bk.name.find("*Model_Space") == 0 || bk.name.find("*Paper_Space") == 0)
+            while (!bk.name.empty() && bk.name.back() == '\0') bk.name.pop_back();
         //complete block entity with block record data
         bk.basePoint = bkr->basePoint;
         bk.flags = bkr->flags;
@@ -1342,6 +1346,16 @@ bool dwgReader::readDwgObject(dwgBuffer *dbuf, objHandle& obj, DRW_Interface& in
         dint16 oType = obj.type;
 
         switch (oType){
+        case 82: {
+            DRW_Layout layout;
+            if (layout.parseDwg(version, &buff, bs)) {
+                auto block = blockRecordmap.find(layout.blockHandle);
+                if (block != blockRecordmap.end()) {
+                    layout.blockName = block->second->name;
+                    intfa.addLayout(layout);
+                }
+            }
+            break; }
         case 102: {
             DRW_ImageDef e;
             ret = e.parseDwg(version, &buff, bs);

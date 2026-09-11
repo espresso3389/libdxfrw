@@ -1253,6 +1253,58 @@ bool DRW_PlotSettings::parseCode(int code, const std::unique_ptr<dxfReader>& rea
     return true;
 }
 
+bool DRW_Layout::parseDwg(DRW::Version version, dwgBuffer *buf, duint32 bs){
+    if (version < DRW::AC1015) return false;
+    dwgBuffer strings = *buf;
+    dwgBuffer *text = version > DRW::AC1018 ? &strings : buf;
+    if (!DRW_TableEntry::parseDwg(version, buf, text, bs)) return false;
+    if (numReactors < 0 || numReactors > 100000) return false;
+    plotStrings[1] = text->getVariableText(version, false);
+    plotStrings[2] = text->getVariableText(version, false);
+    plotInts[70] = buf->getBitShort();
+    for (int code = 40; code <= 45; ++code) plotDoubles[code] = buf->getBitDouble();
+    plotStrings[4] = text->getVariableText(version, false);
+    for (int code : {46, 47}) plotDoubles[code] = buf->getBitDouble();
+    for (int code : {72, 73, 74}) plotInts[code] = buf->getBitShort();
+    for (int code : {48, 49, 140, 141}) plotDoubles[code] = buf->getBitDouble();
+    if (version <= DRW::AC1015) plotStrings[6] = text->getVariableText(version, false);
+    for (int code : {142, 143}) plotDoubles[code] = buf->getBitDouble();
+    plotStrings[7] = text->getVariableText(version, false);
+    plotInts[75] = buf->getBitShort();
+    for (int code : {147, 148, 149}) plotDoubles[code] = buf->getBitDouble();
+    if (version >= DRW::AC1018)
+        for (int code : {76, 77, 78}) plotInts[code] = buf->getBitShort();
+    name = text->getVariableText(version, false);
+    while (!name.empty() && name.back() == '\0') name.pop_back();
+    for (auto& tag : plotStrings)
+        while (!tag.second.empty() && tag.second.back() == '\0') tag.second.pop_back();
+    tabOrder = buf->getBitShort();
+    flags = buf->getBitShort();
+    coordinates[12] = buf->get3BitDouble(); // insertion base
+    coordinates[10] = buf->get2RawDouble();
+    coordinates[11] = buf->get2RawDouble();
+    for (int code : {13, 16, 17}) coordinates[code] = buf->get3BitDouble();
+    ucsElevation = buf->getBitDouble();
+    ucsOrthoView = buf->getBitShort();
+    for (int code : {14, 15}) coordinates[code] = buf->get3BitDouble();
+    dint32 viewports = version >= DRW::AC1018 ? buf->getBitLong() : 0;
+    if (viewports < 0 || viewports > 10000 || name.empty() || name.size() > 1024) return false;
+    // R2007+ puts strings before the handle stream; older versions continue inline.
+    if (version > DRW::AC1018) {
+        buf->setPosition(objSize >> 3);
+        buf->setBitPos(objSize & 7);
+    }
+    parentHandle = buf->getOffsetHandle(handle).ref;
+    for (int i = 0; i < numReactors; ++i) buf->getOffsetHandle(handle);
+    if (xDictFlag != 1) buf->getOffsetHandle(handle);
+    if (version >= DRW::AC1018) buf->getOffsetHandle(handle); // plot view
+    if (version > DRW::AC1018) buf->getOffsetHandle(handle); // shade plot
+    blockHandle = buf->getOffsetHandle(handle).ref;
+    DRW_DBG("\nLAYOUT name: "); DRW_DBG(name); DRW_DBG(" block: "); DRW_DBGH(blockHandle);
+    for (int i = 0; i < 3 + viewports; ++i) buf->getOffsetHandle(handle);
+    return buf->isGood() && text->isGood() && blockHandle != 0;
+}
+
 bool DRW_PlotSettings::parseDwg(DRW::Version version, dwgBuffer *buf, duint32 bs){
     (void) version;
     (void) bs;

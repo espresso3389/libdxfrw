@@ -37,6 +37,7 @@ public:
     virtual void addHeader(const DRW_Header* data) = 0;
 
     virtual void addRegion(const DRW_Region&) {}
+    virtual void addLayout(const DRW_Layout&) {}
 
     /** Called for every line Type.  */
     virtual void addLType(const DRW_LType& data) = 0;
