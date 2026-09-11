@@ -15,6 +15,7 @@
 #define DRW_HEADER_H
 
 #include <memory>
+#include <vector>
 #include <unordered_map>
 #include "drw_base.h"
 
@@ -73,6 +74,7 @@ public:
     DRW_Header(const DRW_Header& h){
         this->version = h.version;
         this->comments = h.comments;
+        this->acdsData = h.acdsData;
         for (auto it=h.vars.begin(); it!=h.vars.end(); ++it){
             this->vars[it->first] = new DRW_Variant( *(it->second) );
         }
@@ -83,6 +85,7 @@ public:
            clearVars();
            this->version = h.version;
            this->comments = h.comments;
+           this->acdsData = h.acdsData;
            for (auto it=h.vars.begin(); it!=h.vars.end(); ++it){
                this->vars[it->first] = new DRW_Variant( *(it->second) );
            }
@@ -115,6 +118,7 @@ private:
 
 public:
     std::unordered_map<std::string,DRW_Variant*> vars;
+    std::shared_ptr<std::vector<duint8>> acdsData; // standalone DWG preview sidecar
 private:
     std::string comments;
     std::string name;

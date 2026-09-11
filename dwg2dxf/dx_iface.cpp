@@ -12,6 +12,7 @@
 
 #include <iostream>
 #include <algorithm>
+#include <fstream>
 #include "dx_iface.h"
 #include "libdwgr.h"
 #include "libdxfrw.h"
@@ -61,6 +62,13 @@ bool dx_iface::fileExport(const std::string& file, DRW::Version v, bool binary, 
     }
     bool success = dxfW->write(this, v, binary);
     delete dxfW;
+    if (success && cData->headerC.acdsData && !cData->headerC.acdsData->empty()) {
+        std::ofstream sidecar(file + ".acds", std::ios::binary | std::ios::trunc);
+        const auto& bytes = *cData->headerC.acdsData;
+        sidecar.write(reinterpret_cast<const char*>(bytes.data()), bytes.size());
+        sidecar.flush();
+        success = sidecar.good();
+    }
     return success;
 }
 
@@ -74,6 +82,9 @@ void dx_iface::writeEntity(DRW_Entity* e){
         break;
     case DRW::LINE:
         dxfW->writeLine(static_cast<DRW_Line*>(e));
+        break;
+    case DRW::REGION:
+        dxfW->writeRegion(static_cast<DRW_Region*>(e));
         break;
     case DRW::CIRCLE:
         dxfW->writeCircle(static_cast<DRW_Circle*>(e));

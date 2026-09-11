@@ -81,6 +81,9 @@ public:
     virtual void addArc(const DRW_Arc& data){
         currentBlock->ent.push_back(new DRW_Arc(data));
     }
+    virtual void addRegion(const DRW_Region& data){
+        currentBlock->ent.push_back(new DRW_Region(data));
+    }
     virtual void addCircle(const DRW_Circle& data){
         currentBlock->ent.push_back(new DRW_Circle(data));
     }
@@ -223,6 +226,13 @@ public:
         // default implementation for new DRW_Interface method
     }
     virtual void writeAppId(){
+        bool sourceApp = false;
+        for (const auto& app : cData->appIds) if (app.name == "KORE_CAD_SOURCE") sourceApp = true;
+        if (!sourceApp) {
+            DRW_AppId app;
+            app.name = "KORE_CAD_SOURCE";
+            dxfW->writeAppId(&app);
+        }
         for (std::list<DRW_AppId>::iterator it=cData->appIds.begin(); it != cData->appIds.end(); ++it)
             dxfW->writeAppId(&(*it));
     }

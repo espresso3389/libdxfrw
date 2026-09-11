@@ -36,6 +36,8 @@ public:
     /** Called when header is parsed.  */
     virtual void addHeader(const DRW_Header* data) = 0;
 
+    virtual void addRegion(const DRW_Region&) {}
+
     /** Called for every line Type.  */
     virtual void addLType(const DRW_LType& data) = 0;
     /** Called for every layer. */

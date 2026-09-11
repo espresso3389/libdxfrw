@@ -614,6 +614,14 @@ bool DRW_Circle::parseCode(int code, const std::unique_ptr<dxfReader>& reader){
     return true;
 }
 
+bool DRW_Region::parseDwg(DRW::Version version, dwgBuffer *buf, duint32 bs) {
+    // Only the common attributes and handles are needed here. On R2007+
+    // the handle stream has an explicit offset independent of modeler data.
+    if (version <= DRW::AC1018) return false;
+    return DRW_Entity::parseDwg(version, buf, nullptr, bs)
+        && DRW_Entity::parseDwgEntHandle(version, buf);
+}
+
 bool DRW_Circle::parseDwg(DRW::Version version, dwgBuffer *buf, duint32 bs){
     bool ret = DRW_Entity::parseDwg(version, buf, nullptr, bs);
     if (!ret)
@@ -964,6 +972,9 @@ bool DRW_3Dface::parseDwg(DRW::Version v, dwgBuffer *buf, duint32 bs){
 
 bool DRW_Block::parseCode(int code, const std::unique_ptr<dxfReader>& reader){
     switch (code) {
+    case 1:
+        xrefPath = reader->getUtf8String();
+        break;
     case 2:
         name = reader->getUtf8String();
         break;
@@ -1082,7 +1093,8 @@ bool DRW_Insert::parseDwg(DRW::Version version, dwgBuffer *buf, duint32 bs){
 
     if (hasAttrib && version > DRW::AC1015) {//2004+
         objCount = buf->getBitLong();
-        DRW_UNUSED(objCount);
+        if (objCount < 0 || static_cast<unsigned>(objCount) > buf->size())
+            return false;
         DRW_DBG("   objCount: "); DRW_DBG(objCount); DRW_DBG("\n");
     }
     if (oType == 8) {//entity are minsert
@@ -1100,17 +1112,20 @@ bool DRW_Insert::parseDwg(DRW::Version version, dwgBuffer *buf, duint32 bs){
     /*attribs follows*/
     if (hasAttrib) {
         if (version < DRW::AC1018) {//2000-
-            dwgHandle attH = buf->getHandle(); /* H 2 BLOCK HEADER (hard pointer) */
+            dwgHandle attH = buf->getOffsetHandle(handle);
+            firstAttribH = attH.ref;
             DRW_DBG("first attrib Handle: "); DRW_DBGHL(attH.code, attH.size, attH.ref); DRW_DBG("\n");
-            attH = buf->getHandle(); /* H 2 BLOCK HEADER (hard pointer) */
+            attH = buf->getOffsetHandle(handle);
+            lastAttribH = attH.ref;
             DRW_DBG("second attrib Handle: "); DRW_DBGHL(attH.code, attH.size, attH.ref); DRW_DBG("\n");
         } else {
-            for (duint8 i=0; i< objCount; ++i){
-                dwgHandle attH = buf->getHandle(); /* H 2 BLOCK HEADER (hard pointer) */
+            for (dint32 i=0; i< objCount; ++i){
+                dwgHandle attH = buf->getOffsetHandle(handle);
+                attributeHandles.push_back(attH.ref);
                 DRW_DBG("attrib Handle #"); DRW_DBG(i); DRW_DBG(": "); DRW_DBGHL(attH.code, attH.size, attH.ref); DRW_DBG("\n");
             }
         }
-        seqendH = buf->getHandle(); /* H 2 BLOCK HEADER (hard pointer) */
+        seqendH = buf->getOffsetHandle(handle);
         DRW_DBG("seqendH Handle: "); DRW_DBGHL(seqendH.code, seqendH.size, seqendH.ref); DRW_DBG("\n");
     }
     DRW_DBG("   Remaining bytes: "); DRW_DBG(buf->numRemainingBytes()); DRW_DBG("\n");
@@ -1294,6 +1309,27 @@ bool DRW_LWPolyline::parseDwg(DRW::Version version, dwgBuffer *buf, duint32 bs){
 
 
 bool DRW_Text::parseCode(int code, const std::unique_ptr<dxfReader>& reader){
+    if (attributeKind != PlainText) {
+        if (code == 100) {
+            const auto subclass = reader->getString();
+            inAttributeSubclass = subclass == "AcDbAttribute" || subclass == "AcDbAttributeDefinition";
+            inAttributeExtension = subclass == "AcDbXrecord";
+            return true;
+        }
+        if (code == 101) inAttributeExtension = true;
+        if (inAttributeExtension) return true;
+        // R2018 reuses 71/72 for attribute type/metadata after AcDbText.
+        if (inAttributeSubclass && (code == 71 || code == 72)) return true;
+        switch (code) {
+        case 2: tag = reader->getUtf8String(); return true;
+        case 3: prompt = reader->getUtf8String(); return true;
+        case 70: attributeFlags = reader->getInt32(); return true;
+        case 73: fieldLength = reader->getInt32(); return true;
+        case 74: alignV = (VAlign)reader->getInt32(); return true;
+        case 280: lockPosition = reader->getInt32() != 0; return true;
+        default: break;
+        }
+    }
     switch (code) {
     case 40:
         height = reader->getDouble();
@@ -1389,9 +1425,17 @@ bool DRW_Text::parseDwg(DRW::Version version, dwgBuffer *buf, duint32 bs){
         widthscale = buf->getBitDouble(); /* Width factor BD 41 */
     }
     angle *= ARAD;
+    oblique *= ARAD;
     DRW_DBG("thickness: "); DRW_DBG(thickness); DRW_DBG(", Oblique ang: "); DRW_DBG(oblique); DRW_DBG(", Width: ");
     DRW_DBG(widthscale); DRW_DBG(", Rotation: "); DRW_DBG(angle); DRW_DBG(", height: "); DRW_DBG(height); DRW_DBG("\n");
-    text = sBuf->getVariableText(version, false); /* Text value TV 1 */
+    auto readText = [&]() {
+        auto value = sBuf->getVariableText(version, false);
+        // Older codepage strings can include their terminating NUL in the
+        // stored length. It is not part of a DXF attribute tag or text value.
+        while (!value.empty() && value.back() == '\0') value.pop_back();
+        return value;
+    };
+    text = readText(); /* Text value TV 1 */
     DRW_DBG("text string: "); DRW_DBG(text.c_str());DRW_DBG("\n");
     //textgen, alignH, alignV always present in R14-, data_flags set in initialisation
     if ( !(data_flags & 0x20) ) { /* Generation BS 71 present if !(DataFlags & 0x20) */
@@ -1408,12 +1452,30 @@ bool DRW_Text::parseDwg(DRW::Version version, dwgBuffer *buf, duint32 bs){
     }
     DRW_DBG("\n");
 
+    if (oType == 2 || oType == 3) {
+        attributeKind = static_cast<AttributeKind>(oType);
+        if (version >= DRW::AC1024) buf->getRawChar8(); // attribute class version
+        if (version >= DRW::AC1032 && buf->getRawChar8() > 1) {
+            // Embedded multiline MTEXT has a different payload. Leave that
+            // attribute unsupported without misreading the remaining drawing.
+            return false;
+        }
+        tag = readText();
+        fieldLength = buf->getBitShort();
+        attributeFlags = buf->getRawChar8();
+        if (version >= DRW::AC1021) lockPosition = buf->getBit();
+        if (version >= DRW::AC1024) buf->getRawChar8(); // duplicate record policy
+        if (attributeKind == AttributeDefinition)
+            prompt = readText();
+        if (!buf->isGood() || !sBuf->isGood()) return false;
+    }
+
     /* Common Entity Handle Data */
     ret = DRW_Entity::parseDwgEntHandle(version, buf);
     if (!ret)
         return ret;
 
-    styleH = buf->getHandle(); /* H 7 STYLE (hard pointer) */
+    styleH = buf->getOffsetHandle(handle); /* H 7 STYLE (hard pointer) */
     DRW_DBG("text style Handle: "); DRW_DBGHL(styleH.code, styleH.size, styleH.ref); DRW_DBG("\n");
 
     /* CRC X --- */
@@ -2483,8 +2545,8 @@ bool DRW_Dimension::parseDwg(DRW::Version version, dwgBuffer *buf, dwgBuffer *sB
     type =  (type & 1) ? type & 0x7F : type | 0x80; //set bit 7
     type =  (type & 2) ? type | 0x20 : type & 0xDF; //set bit 5
     DRW_DBG(" type (70) set: "); DRW_DBG(type);
-    //clear last 3 bits to set integer dim type
-    type &= 0xF8;
+    // Keep only DXF placement flags before setting the dimension kind.
+    type &= 0xE0;
     text = sBuf->getVariableText(version, false);
     DRW_DBG("\nforced dim text: "); DRW_DBG(text.c_str());
     rot = buf->getBitDouble();

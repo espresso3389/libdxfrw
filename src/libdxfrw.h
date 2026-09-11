@@ -54,6 +54,7 @@ public:
     bool writeRay(DRW_Ray *ent);
     bool writeXline(DRW_Xline *ent);
     bool writeCircle(DRW_Circle *ent);
+    bool writeRegion(DRW_Region *ent);
     bool writeArc(DRW_Arc *ent);
     bool writeEllipse(DRW_Ellipse *ent);
     bool writeTrace(DRW_Trace *ent);
@@ -108,7 +109,7 @@ private:
     bool processLWPolyline();
     bool processPolyline();
     bool processVertex(DRW_Polyline* pl);
-    bool processText();
+    bool processText(DRW_Text* attribute = nullptr);
     bool processMText();
     bool processHatch();
     bool processSpline();

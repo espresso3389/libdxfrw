@@ -155,6 +155,7 @@ protected:
     bool readDwgEntities(DRW_Interface& intfa, dwgBuffer *dbuf);
     bool readDwgObjects(DRW_Interface& intfa, dwgBuffer *dbuf);
     bool readPlineVertex(DRW_Polyline& pline, dwgBuffer *dbuf);
+    bool readInsertAttributes(DRW_Insert& insert, dwgBuffer *dbuf);
 
 public:
     std::unordered_map<duint32, objHandle>ObjectMap;

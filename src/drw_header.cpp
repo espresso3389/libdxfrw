@@ -1815,7 +1815,7 @@ bool DRW_Header::parseDwg(DRW::Version version, dwgBuffer *buf, dwgBuffer *hBbuf
     vars["REGENMODE"]=new DRW_Variant(70, buf->getBit());
     vars["FILLMODE"]=new DRW_Variant(70, buf->getBit());
     vars["QTEXTMODE"]=new DRW_Variant(70, buf->getBit());
-    vars["PSLTSCALE"]=new DRW_Variant(70, buf->getBit());
+    vars["$PSLTSCALE"]=new DRW_Variant(70, buf->getBit());
     vars["LIMCHECK"]=new DRW_Variant(70, buf->getBit());
     if (version < DRW::AC1015) {//pre 2000
         vars["BLIPMODE"]=new DRW_Variant(70, buf->getBit());
@@ -1888,7 +1888,7 @@ bool DRW_Header::parseDwg(DRW::Version version, dwgBuffer *buf, dwgBuffer *hBbuf
     vars["ISOLINES"]=new DRW_Variant(70, buf->getBitShort());//////////////////
     vars["CMLJUST"]=new DRW_Variant(70, buf->getBitShort());
     vars["TEXTQLTY"]=new DRW_Variant(70, buf->getBitShort());/////////////////////
-    vars["LTSCALE"]=new DRW_Variant(40, buf->getBitDouble());
+    vars["$LTSCALE"]=new DRW_Variant(40, buf->getBitDouble());
     vars["TEXTSIZE"]=new DRW_Variant(40, buf->getBitDouble());
     vars["TRACEWID"]=new DRW_Variant(40, buf->getBitDouble());
     vars["SKETCHINC"]=new DRW_Variant(40, buf->getBitDouble());
@@ -1908,7 +1908,7 @@ bool DRW_Header::parseDwg(DRW::Version version, dwgBuffer *buf, dwgBuffer *hBbuf
     vars["CHAMFERD"]=new DRW_Variant(40, buf->getBitDouble());
     vars["FACETRES"]=new DRW_Variant(40, buf->getBitDouble());/////////////////////////
     vars["CMLSCALE"]=new DRW_Variant(40, buf->getBitDouble());
-    vars["CELTSCALE"]=new DRW_Variant(40, buf->getBitDouble());
+    vars["$CELTSCALE"]=new DRW_Variant(40, buf->getBitDouble());
     if (version < DRW::AC1021) {//2004-
         vars["MENU"]=new DRW_Variant(1, buf->getCP8Text());
     }

@@ -11,6 +11,7 @@
 ******************************************************************************/
 
 #include <cstdlib>
+#include <algorithm>
 #include <iostream>
 #include <fstream>
 #include <string>
@@ -413,6 +414,30 @@ bool dwgReader18::readFileHeader() {
 }
 
 bool dwgReader18::readDwgHeader(DRW_Header& hdr){
+    // Modern DWG stores modeler data separately from REGION entities.
+    // Preserve the bounded raw datastore for the standalone preview adapter.
+    const auto acds = sections.find(secEnum::PROTOTYPE);
+    if (acds != sections.end()) {
+        const auto& section = acds->second;
+        constexpr duint32 limit = 64 * 1024 * 1024;
+        bool bounded = section.maxSize > 0 && section.maxSize <= limit
+            && section.pageCount > 0 && section.pageCount <= limit / section.maxSize;
+        if (bounded) {
+            const duint32 allocated = section.pageCount * section.maxSize;
+            bounded = section.size <= allocated && section.pages.size() == section.pageCount;
+            std::vector<duint64> offsets;
+            for (const auto& page : section.pages) offsets.push_back(page.second.startOffset);
+            std::sort(offsets.begin(), offsets.end());
+            for (size_t i = 0; i < offsets.size(); ++i) {
+                // Require contiguous complete pages before copying any bytes.
+                bounded = bounded && offsets[i] == i * section.maxSize;
+            }
+        }
+        if (bounded && parseDataPage(section)) {
+            hdr.acdsData = std::make_shared<std::vector<duint8>>(
+                objData.get(), objData.get() + section.size);
+        }
+    }
     DRW_DBG("dwgReader18::readDwgHeader\n");
     dwgSectionInfo si = sections[secEnum::HEADER];
     if (si.Id<0)//not found, ends

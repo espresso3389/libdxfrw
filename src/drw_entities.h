@@ -65,7 +65,7 @@ namespace DRW {
         POINT,
         POLYLINE,
         RAY,
-//        REGION, //encrypted proprietary data
+        REGION, // modeler data is preserved via the AcDs sidecar
 //        SECTION,
 //        SEQEND,//not needed?? used in polyline and insert/attrib and dwg
 //        SHAPE,
@@ -254,6 +254,16 @@ public:
     DRW_Xline() {
         eType = DRW::XLINE;
     }
+};
+
+//! A REGION placeholder keeps identity and display properties in DXF.
+//! Its binary modeler geometry is loaded from the separate AcDs datastore.
+class DRW_Region : public DRW_Point {
+    SETENTFRIENDS
+public:
+    DRW_Region() { eType = DRW::REGION; }
+protected:
+    bool parseDwg(DRW::Version version, dwgBuffer *buf, duint32 bs=0) override;
 };
 
 //! Class to handle circle entity
@@ -477,6 +487,7 @@ protected:
 
 public:
     UTF8STRING name;             /*!< block name, code 2 */
+    UTF8STRING xrefPath;         /*!< external reference path, code 1 */
     int flags;                   /*!< block type, code 70 */
 private:
     bool isEnd; //for dwg parsing
@@ -488,6 +499,7 @@ private:
 *  Class to handle insert entries
 *  @author Rallaz
 */
+class DRW_Text;
 class DRW_Insert : public DRW_Point {
     SETENTFRIENDS
 public:
@@ -517,9 +529,12 @@ public:
     int rowcount;            /*!< row count, code 71 */
     double colspace;         /*!< column space, code 44 */
     double rowspace;         /*!< row space, code 45 */
+    std::vector<std::shared_ptr<DRW_Text>> attributes;
 public: //only for read dwg
     dwgHandle blockRecH;
-    dwgHandle seqendH; //RLZ: on implement attrib remove this handle from obj list (see pline/vertex code)
+    dwgHandle seqendH;
+    duint32 firstAttribH{0}, lastAttribH{0};
+    std::vector<duint32> attributeHandles;
 };
 
 //! Class to handle lwpolyline entity
@@ -635,6 +650,15 @@ public:
     enum HAlign alignH;        /*!< horizontal align, code 72 */
     enum VAlign alignV;        /*!< vertical align, code 73 */
     dwgHandle styleH;          /*!< handle for text style */
+    // TEXT, ATTRIB and ATTDEF share their text geometry and style. Keep the
+    // attribute discriminator when copying through the existing text callback.
+    enum AttributeKind { PlainText = 0, Attribute = 2, AttributeDefinition = 3 };
+    AttributeKind attributeKind{PlainText};
+    UTF8STRING tag, prompt;
+    int attributeFlags{0}, fieldLength{0};
+    bool lockPosition{false};
+private:
+    bool inAttributeSubclass{false}, inAttributeExtension{false};
 };
 
 //! Class to handle insert entries
@@ -1005,7 +1029,7 @@ public:
     }
 
     DRW_Dimension(const DRW_Dimension& d): DRW_Entity(d) {
-        eType = DRW::DIMENSION;
+        eType = d.eType;
         type = d.type;
         name = d.name;
         defPoint = d.defPoint;
@@ -1420,4 +1444,3 @@ private:
 #endif
 
 // EOF
-

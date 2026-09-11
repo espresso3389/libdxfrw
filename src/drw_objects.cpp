@@ -727,7 +727,7 @@ bool DRW_Block_Record::parseDwg(DRW::Version version, dwgBuffer *buf, duint32 bs
         flags |= buf->getBit() << 5; //if is a loaded Xref, block code 70, bit 6 (32)
     }
     DRW_DBG("flags: "); DRW_DBG(flags); DRW_DBG(", ");
-    if (version > DRW::AC1015) {//2004+ fails in 2007
+    if (version > DRW::AC1015 && !blockIsXref && !xrefOverlaid) { //2004+ local blocks only
         objectCount = buf->getBitLong(); //Number of objects owned by this block
         if (!DRW::reserve( entMap, objectCount)) {
             return false;
@@ -737,8 +737,8 @@ bool DRW_Block_Record::parseDwg(DRW::Version version, dwgBuffer *buf, duint32 bs
     basePoint.y = buf->getBitDouble();
     basePoint.z = buf->getBitDouble();
     DRW_DBG("insertion point: "); DRW_DBGPT(basePoint.x, basePoint.y, basePoint.z); DRW_DBG("\n");
-    UTF8STRING path = sBuf->getVariableText(version, false);
-    DRW_DBG("XRef path name: "); DRW_DBG(path.c_str()); DRW_DBG("\n");
+    xrefPath = sBuf->getVariableText(version, false);
+    DRW_DBG("XRef path name: "); DRW_DBG(xrefPath.c_str()); DRW_DBG("\n");
 
     if (version > DRW::AC1014) {//2000+
         insertCount = 0;

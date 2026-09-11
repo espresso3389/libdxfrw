@@ -172,6 +172,8 @@ bool dxfRW::writeEntity(DRW_Entity *ent) {
         writer->writeUtf8Caps(6, ent->lineType);
     }
     writer->writeInt16(62, ent->color);
+    if (version > DRW::AC1009 && ent->ltypeScale != 1.0)
+        writer->writeDouble(48, ent->ltypeScale);
     if (version > DRW::AC1015 && ent->color24 >= 0) {
         writer->writeInt32(420, ent->color24);
     }
@@ -1105,6 +1107,18 @@ bool dxfRW::writeLeader(DRW_Leader *ent){
     }
     return true;
 }
+bool dxfRW::writeRegion(DRW_Region *ent) {
+    if (version <= DRW::AC1009) return false;
+    const duint32 sourceHandle = ent->handle;
+    writer->writeString(0, "REGION");
+    writeEntity(ent);
+    writer->writeString(100, "AcDbModelerGeometry");
+    writer->writeInt16(70, 1);
+    writer->writeString(1001, "KORE_CAD_SOURCE");
+    writer->writeString(1000, toHexStr(sourceHandle));
+    return true;
+}
+
 bool dxfRW::writeDimension(DRW_Dimension *ent) {
     if (version > DRW::AC1009) {
         writer->writeString(0, "DIMENSION");
@@ -1233,6 +1247,7 @@ bool dxfRW::writeInsert(DRW_Insert *ent){
         writer->writeUtf8String(2, ent->name);
     } else
         writer->writeUtf8Caps(2, ent->name);
+    if (!ent->attributes.empty()) writer->writeInt16(66, 1);
     writer->writeDouble(10, ent->basePoint.x);
     writer->writeDouble(20, ent->basePoint.y);
     writer->writeDouble(30, ent->basePoint.z);
@@ -1248,11 +1263,21 @@ bool dxfRW::writeInsert(DRW_Insert *ent){
     writer->writeDouble(210, ent->extPoint.x);
     writer->writeDouble(220, ent->extPoint.y);
     writer->writeDouble(230, ent->extPoint.z);
+    for (auto& attribute : ent->attributes) writeText(attribute.get());
+    if (!ent->attributes.empty()) {
+        writer->writeString(0, "SEQEND");
+        DRW_Point end;
+        end.layer = ent->layer;
+        end.space = ent->space;
+        writeEntity(&end);
+    }
     return true;
 }
 
 bool dxfRW::writeText(DRW_Text *ent){
-    writer->writeString(0, "TEXT");
+    bool attribute = ent->attributeKind != DRW_Text::PlainText;
+    bool definition = ent->attributeKind == DRW_Text::AttributeDefinition;
+    writer->writeString(0, attribute ? (definition ? "ATTDEF" : "ATTRIB") : "TEXT");
     writeEntity(ent);
     if (version > DRW::AC1009) {
         writer->writeString(100, "AcDbText");
@@ -1283,10 +1308,17 @@ bool dxfRW::writeText(DRW_Text *ent){
     writer->writeDouble(220, ent->extPoint.y);
     writer->writeDouble(230, ent->extPoint.z);
     if (version > DRW::AC1009) {
-        writer->writeString(100, "AcDbText");
+        writer->writeString(100, attribute ? (definition ? "AcDbAttributeDefinition" : "AcDbAttribute") : "AcDbText");
+    }
+    if (attribute) {
+        if (definition) writer->writeUtf8String(3, ent->prompt);
+        writer->writeUtf8String(2, ent->tag);
+        writer->writeInt16(70, ent->attributeFlags);
+        writer->writeInt16(73, ent->fieldLength);
+        if (version >= DRW::AC1021) writer->writeInt16(280, ent->lockPosition ? 1 : 0);
     }
     if (ent->alignV != DRW_Text::VBaseLine) {
-        writer->writeInt16(73, ent->alignV);
+        writer->writeInt16(attribute ? 74 : 73, ent->alignV);
     }
     return true;
 }
@@ -1457,7 +1489,7 @@ bool dxfRW::writeBlock(DRW_Block *bk){
     if(version >= DRW::AC1014) {
         writeAppData(bk->appData);
     }
-    writer->writeString(1, "");
+    writer->writeUtf8String(1, bk->xrefPath);
 
     return true;
 }
@@ -2362,7 +2394,7 @@ bool dxfRW::processEntities(bool isblock) {
             processed = processLWPolyline();
         } else if (nextentity == "POLYLINE") {
             processed = processPolyline();
-        } else if (nextentity == "TEXT") {
+        } else if (nextentity == "TEXT" || nextentity == "ATTDEF") {
             processed = processText();
         } else if (nextentity == "MTEXT") {
             processed = processMText();
@@ -2649,6 +2681,11 @@ bool dxfRW::processInsert() {
         if (0 == code) {
            nextentity = reader->getString();
             DRW_DBG(nextentity); DRW_DBG("\n");
+            while (nextentity == "ATTRIB") {
+                auto attribute = std::make_shared<DRW_Text>();
+                if (!processText(attribute.get())) return false;
+                insert.attributes.push_back(attribute);
+            }
             iface->addInsert(insert);
             return true;  //found new entity or ENDSEC, terminate
         }
@@ -2734,16 +2771,19 @@ bool dxfRW::processVertex(DRW_Polyline *pl) {
     return setError(DRW::BAD_READ_ENTITIES);
 }
 
-bool dxfRW::processText() {
+bool dxfRW::processText(DRW_Text* attribute) {
     DRW_DBG("dxfRW::processText");
     int code;
     DRW_Text txt;
+    if (nextentity == "ATTRIB") txt.attributeKind = DRW_Text::Attribute;
+    if (nextentity == "ATTDEF") txt.attributeKind = DRW_Text::AttributeDefinition;
     while (reader->readRec(&code)) {
         DRW_DBG(code); DRW_DBG("\n");
         if (0 == code) {
             nextentity = reader->getString();
             DRW_DBG(nextentity); DRW_DBG("\n");
-            iface->addText(txt);
+            if (attribute) *attribute = txt;
+            else iface->addText(txt);
             return true;  //found new entity or ENDSEC, terminate
         }
 
