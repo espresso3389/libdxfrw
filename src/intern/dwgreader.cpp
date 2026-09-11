@@ -1118,6 +1118,18 @@ bool dwgReader::readDwgEntity(dwgBuffer *dbuf, objHandle& obj, DRW_Interface& in
                 intfa.addInsert(e);
             }
             break; }
+        case 103: { // ACAD_TABLE: cached geometry in R2004/R2007
+            if (version < DRW::AC1018 || version > DRW::AC1021) {
+                objObjectMap[obj.handle] = obj;
+                break;
+            }
+            DRW_Insert e;
+            e.tableGeometry = true;
+            if (entryParse(e, buff, bs, ret)) {
+                e.name = findTableName(DRW::BLOCK_RECORD, e.blockRecH.ref);
+                intfa.addInsert(e);
+            }
+            break; }
         case 77: {
             DRW_LWPolyline e;
             if (entryParse( e, buff, bs, ret)) {

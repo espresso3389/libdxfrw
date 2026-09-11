@@ -625,6 +625,7 @@ bool DRW_Layer::parseCode(int code, const std::unique_ptr<dxfReader>& reader){
 }
 
 bool DRW_Layer::parseDwg(DRW::Version version, dwgBuffer *buf, duint32 bs){
+    bool layerOff = false;
     dwgBuffer sBuff = *buf;
     dwgBuffer *sBuf = buf;
     if (version > DRW::AC1018) {//2007+
@@ -650,7 +651,8 @@ bool DRW_Layer::parseDwg(DRW::Version version, dwgBuffer *buf, duint32 bs){
         flags |= buf->getBit()<< 3;//locked
     }
     if (version > DRW::AC1014) {//2000+
-        dint16 f = buf->getSBitShort();//bit2 are layer on
+        dint16 f = buf->getSBitShort();
+        layerOff = (f & 0x0002) != 0;
         DRW_DBG(", flags 2000+: "); DRW_DBG(f); DRW_DBG("\n");
         flags |= f & 0x0001; //layer frozen
         flags |= ( f>> 1) & 0x0002;//frozen in new
@@ -659,6 +661,8 @@ bool DRW_Layer::parseDwg(DRW::Version version, dwgBuffer *buf, duint32 bs){
         lWeight = DRW_LW_Conv::dwgInt2lineWidth( (f & 0x03E0) >> 5 );
     }
     color = buf->getCmColor(version); //BS or CMC //ok for R14 or negate
+    // DWG packs the off state into flags; DXF encodes it as a negative ACI.
+    if (layerOff && color > 0) color = -color;
     DRW_DBG(", entity color: "); DRW_DBG(color); DRW_DBG("\n");
 
     if (version > DRW::AC1018) {//2007+ skip string area

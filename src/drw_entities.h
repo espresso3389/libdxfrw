@@ -531,6 +531,7 @@ public:
     double rowspace;         /*!< row space, code 45 */
     std::vector<std::shared_ptr<DRW_Text>> attributes;
 public: //only for read dwg
+    bool tableGeometry = false;
     dwgHandle blockRecH;
     dwgHandle seqendH;
     duint32 firstAttribH{0}, lastAttribH{0};

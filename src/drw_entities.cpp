@@ -1092,7 +1092,7 @@ bool DRW_Insert::parseDwg(DRW::Version version, dwgBuffer *buf, duint32 bs){
     bool hasAttrib = buf->getBit();
     DRW_DBG("   has Attrib: "); DRW_DBG(hasAttrib);
 
-    if (hasAttrib && version > DRW::AC1015) {//2004+
+    if ((hasAttrib || tableGeometry) && version > DRW::AC1015) {//2004+
         objCount = buf->getBitLong();
         if (objCount < 0 || static_cast<unsigned>(objCount) > buf->size())
             return false;
@@ -1105,6 +1105,15 @@ bool DRW_Insert::parseDwg(DRW::Version version, dwgBuffer *buf, duint32 bs){
         rowspace = buf->getBitDouble();
     }
     DRW_DBG("   Remaining bytes: "); DRW_DBG(buf->numRemainingBytes()); DRW_DBG("\n");
+    if (tableGeometry) {
+        // R2004/R2007 TABLE has an INSERT prefix followed by cell data.
+        // The saved anonymous block already contains its evaluated geometry.
+        // Skip cell data using the declared handle-stream boundary, including
+        // R2004 where ordinary INSERT reaches that boundary sequentially.
+        if (objSize >= buf->size() * 8 || !buf->setPosition(objSize >> 3))
+            return false;
+        buf->setBitPos(objSize & 7);
+    }
     ret = DRW_Entity::parseDwgEntHandle(version, buf);
     blockRecH = buf->getHandle(); /* H 2 BLOCK HEADER (hard pointer) */
     DRW_DBG("BLOCK HEADER Handle: "); DRW_DBGHL(blockRecH.code, blockRecH.size, blockRecH.ref); DRW_DBG("\n");

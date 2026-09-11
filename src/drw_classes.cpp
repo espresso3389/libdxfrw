@@ -84,6 +84,8 @@ void DRW_Class::toDwgType(){
         dwgType = 101;
     else if (recName == "IMAGEDEF")
         dwgType = 102;
+    else if (recName == "ACAD_TABLE")
+        dwgType = 103;
     else
         dwgType =0;
 }
