@@ -66,6 +66,9 @@ bool dx_iface::fileExport(const std::string& file, DRW::Version v, bool binary, 
 
 void dx_iface::writeEntity(DRW_Entity* e){
     switch (e->eType) {
+    case DRW::E3DFACE:
+        dxfW->write3dface(static_cast<DRW_3Dface*>(e));
+        break;
     case DRW::POINT:
         dxfW->writePoint(static_cast<DRW_Point*>(e));
         break;

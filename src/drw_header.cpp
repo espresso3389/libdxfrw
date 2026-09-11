@@ -2234,7 +2234,7 @@ fs0.close();
     }
     if (version > DRW::AC1014) {//2000+
         DRW_DBG("\nFlags: "); DRW_DBGH(buf->getBitLong());//RLZ TODO change to 8 vars
-        vars["INSUNITS"]=new DRW_Variant(70, buf->getBitShort());
+        vars["$INSUNITS"]=new DRW_Variant(70, buf->getBitShort());
         duint16 cepsntype = buf->getBitShort();
         vars["CEPSNTYPE"]=new DRW_Variant(70, cepsntype);
         if (cepsntype == 3){
