@@ -1803,6 +1803,29 @@ bool DRW_Hatch::parseCode(int code, const std::unique_ptr<dxfReader>& reader){
         break;
     case 78:
         deflines = reader->getInt32();
+        patternLines.clear();
+        clearEntities();
+        break;
+    case 53:
+        patternLines.emplace_back();
+        patternLines.back().angle = reader->getDouble();
+        break;
+    case 43:
+        if (!patternLines.empty()) patternLines.back().base.x = reader->getDouble();
+        break;
+    case 44:
+        if (!patternLines.empty()) patternLines.back().base.y = reader->getDouble();
+        break;
+    case 45:
+        if (!patternLines.empty()) patternLines.back().offset.x = reader->getDouble();
+        break;
+    case 46:
+        if (!patternLines.empty()) patternLines.back().offset.y = reader->getDouble();
+        break;
+    case 79: // dash count; the actual lengths are stored as code 49
+        break;
+    case 49:
+        if (!patternLines.empty()) patternLines.back().dashes.push_back(reader->getDouble());
         break;
     case 91:
         loopsnum = reader->getInt32();
@@ -1973,26 +1996,27 @@ bool DRW_Hatch::parseDwg(DRW::Version version, dwgBuffer *buf, duint32 bs){
     hpattern = buf->getBitShort();
     DRW_DBG("\nhatch style: "); DRW_DBG(hstyle); DRW_DBG(" pattern type"); DRW_DBG(hpattern);
     if (!solid){
-        angle = buf->getBitDouble();
+        angle = buf->getBitDouble() * ARAD; // DWG radians -> DXF degrees
         scale = buf->getBitDouble();
         doubleflag = buf->getBit();
         deflines = buf->getBitShort();
-        for (dint32 i = 0 ; i < deflines; ++i){
-            DRW_Coord ptL, offL;
-            double angleL = buf->getBitDouble();
-            ptL.x = buf->getBitDouble();
-            ptL.y = buf->getBitDouble();
-            offL.x = buf->getBitDouble();
-            offL.y = buf->getBitDouble();
-            duint16 numDashL = buf->getBitShort();
-            DRW_DBG("\ndef line: "); DRW_DBG(angleL); DRW_DBG(","); DRW_DBG(ptL.x); DRW_DBG(","); DRW_DBG(ptL.y);
-            DRW_DBG(","); DRW_DBG(offL.x); DRW_DBG(","); DRW_DBG(offL.y); DRW_DBG(","); DRW_DBG(angleL);
-            for (duint16 i = 0 ; i < numDashL; ++i){
-                double lengthL = buf->getBitDouble();
-                DRW_DBG(","); DRW_DBG(lengthL);
+        if (!DRW::reserve(patternLines, deflines)) return false;
+        for (dint32 i = 0; i < deflines; ++i){
+            DRW_HatchPatternLine pattern;
+            pattern.angle = buf->getBitDouble() * ARAD;
+            pattern.base.x = buf->getBitDouble();
+            pattern.base.y = buf->getBitDouble();
+            pattern.offset.x = buf->getBitDouble();
+            pattern.offset.y = buf->getBitDouble();
+            duint16 dashCount = buf->getBitShort();
+            if (!DRW::reserve(pattern.dashes, dashCount)) return false;
+            for (duint16 j = 0; j < dashCount; ++j){
+                pattern.dashes.push_back(buf->getBitDouble());
             }
-        }//end deflines
-    } //end not solid
+            if (!buf->isGood()) return false;
+            patternLines.push_back(pattern);
+        }
+    }
 
     if (havePixelSize){
         ddouble64 pixsize = buf->getBitDouble();

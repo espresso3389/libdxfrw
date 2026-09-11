@@ -842,6 +842,14 @@ public:
     std::vector<std::shared_ptr<DRW_Entity>> objlist;      /*!< entities list */
 };
 
+//! A pattern line already includes the hatch scale and rotation.
+struct DRW_HatchPatternLine {
+    double angle = 0.0; // degrees, DXF code 53
+    DRW_Coord base;
+    DRW_Coord offset;
+    std::vector<double> dashes;
+};
+
 //! Class to handle hatch entity
 /*!
 *  Class to handle hatch entity
@@ -858,6 +866,7 @@ public:
         loopsnum = hstyle = associative = 0;
         solid = hpattern = 1;
         deflines = doubleflag = 0;
+        ispol = false;
         clearEntities();
     }
 
@@ -880,6 +889,7 @@ public:
     double angle;              /*!< hatch pattern angle, code 52 */
     double scale;              /*!< hatch pattern scale, code 41 */
     int deflines;              /*!< number of pattern definition lines, code 78 */
+    std::vector<DRW_HatchPatternLine> patternLines;
 
     std::vector<std::shared_ptr<DRW_HatchLoop>> looplist;  /*!< polyline list */
 

@@ -983,17 +983,31 @@ bool dxfRW::writeHatch(DRW_Hatch *ent){
         writer->writeInt16(70, ent->solid);
         writer->writeInt16(71, ent->associative);
         ent->loopsnum = ent->looplist.size();
-        writer->writeInt16(91, ent->loopsnum);
+        writer->writeInt32(91, ent->loopsnum);
         //write paths data
         for (int i = 0;  i< ent->loopsnum; i++){
             DRW_HatchLoop *loop = ent->looplist.at(i).get();
             writer->writeInt16(92, loop->type);
             if ( (loop->type & 2) == 2){
-                //RLZ: polyline boundary writeme
+                // HATCH vertices are inline boundary data, not VERTEX entities.
+                const DRW_LWPolyline* polyline = nullptr;
+                if (!loop->objlist.empty() && loop->objlist.front()->eType == DRW::LWPOLYLINE)
+                    polyline = static_cast<DRW_LWPolyline*>(loop->objlist.front().get());
+                writer->writeInt16(72, 1); // preserve per-vertex bulges
+                writer->writeInt16(73, polyline ? (polyline->flags & 1) : 0);
+                writer->writeInt32(93, polyline ? polyline->vertlist.size() : 0);
+                if (polyline) {
+                    for (const auto& vertex : polyline->vertlist) {
+                        writer->writeDouble(10, vertex->x);
+                        writer->writeDouble(20, vertex->y);
+                        writer->writeDouble(42, vertex->bulge);
+                    }
+                }
+                writer->writeInt32(97, 0);
             } else {
                 //boundary path
                 loop->update();
-                writer->writeInt16(93, loop->numedges);
+                writer->writeInt32(93, loop->numedges);
                 for (int j = 0; j<loop->numedges; ++j) {
                     switch ( (loop->objlist.at(j))->eType) {
                     case DRW::LINE: {
@@ -1044,7 +1058,16 @@ bool dxfRW::writeHatch(DRW_Hatch *ent){
             writer->writeDouble(52, ent->angle);
             writer->writeDouble(41, ent->scale);
             writer->writeInt16(77, ent->doubleflag);
-            writer->writeInt16(78, ent->deflines);
+            writer->writeInt16(78, ent->patternLines.size());
+            for (const auto& pattern : ent->patternLines) {
+                writer->writeDouble(53, pattern.angle);
+                writer->writeDouble(43, pattern.base.x);
+                writer->writeDouble(44, pattern.base.y);
+                writer->writeDouble(45, pattern.offset.x);
+                writer->writeDouble(46, pattern.offset.y);
+                writer->writeInt16(79, pattern.dashes.size());
+                for (double dash : pattern.dashes) writer->writeDouble(49, dash);
+            }
         }
 /*        if (ent->deflines > 0){
             writer->writeInt16(78, ent->deflines);
