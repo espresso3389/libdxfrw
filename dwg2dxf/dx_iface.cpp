@@ -77,6 +77,9 @@ void dx_iface::writeEntity(DRW_Entity* e){
     case DRW::E3DFACE:
         dxfW->write3dface(static_cast<DRW_3Dface*>(e));
         break;
+    case DRW::VIEWPORT:
+        dxfW->writeViewport(static_cast<DRW_Viewport*>(e));
+        break;
     case DRW::POINT:
         dxfW->writePoint(static_cast<DRW_Point*>(e));
         break;

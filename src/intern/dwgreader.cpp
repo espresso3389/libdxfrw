@@ -732,6 +732,16 @@ bool dwgReader::readDwgBlocks(DRW_Interface& intfa, dwgBuffer *dbuf){
 
     for (auto it=blockRecordmap.begin(); it != blockRecordmap.end(); ++it){
         DRW_Block_Record* bkr= it->second;
+        // The first paper-space entity is the overall paper view, not a
+        // floating model view. Use ownership order; ObjectMap iteration is unordered.
+        if (bkr->name.find("*Paper_Space") == 0) {
+            if (version > DRW::AC1015) {
+                for (size_t i = 0; i < bkr->entMap.size(); ++i)
+                    paperEntityOrder[bkr->entMap[i]] = static_cast<int>(i + 1);
+            } else {
+                paperEntityOrder[bkr->firstEH] = 1;
+            }
+        }
         DRW_DBG("\nParsing Block, record handle= "); DRW_DBGH(it->first); DRW_DBG(" Name= "); DRW_DBG(bkr->name); DRW_DBG("\n");
         DRW_DBG("\nFinding Block, handle= "); DRW_DBGH(bkr->block); DRW_DBG("\n");
         auto mit = ObjectMap.find(bkr->block);
@@ -1218,6 +1228,10 @@ bool dwgReader::readDwgEntity(dwgBuffer *dbuf, objHandle& obj, DRW_Interface& in
         case 34: {
             DRW_Viewport e;
             if (entryParse( e, buff, bs, ret)) {
+                auto order = paperEntityOrder.find(e.handle);
+                e.vpID = order != paperEntityOrder.end() ? order->second : nextViewportId++;
+                // R13/R14 view parameters live in the unimplemented VX table.
+                e.vpstatus = (version < DRW::AC1015 || (e.statusFlags & 0x20000)) ? 0 : e.vpID;
                 intfa.addViewport(e);
             }
             break; }

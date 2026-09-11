@@ -1381,6 +1381,14 @@ public:
     DRW_Viewport() {
         eType = DRW::VIEWPORT;
         vpstatus = 0;
+        vpID = 2;
+        viewDir = DRW_Coord(0, 0, 1);
+        viewHeight = 1;
+        viewLength = 50;
+        frontClip = backClip = snapAngle = twistAngle = 0;
+        snapPX = snapPY = snapSpPX = snapSpPY = 0;
+        statusFlags = 0;
+        frozenLyCount = 0;
         pswidth = 205;
         psheight = 156;
         centerPX = 128.5;
@@ -1414,6 +1422,9 @@ public:
 
 private:
     duint32 frozenLyCount;
+public:
+    duint32 statusFlags;
+    std::vector<duint32> frozenLayerHandles;
 };//RLZ: missing 15,25, 72, 331, 90, 340, 1, 281, 71, 74, 110, 120, 130, 111, 121,131, 112,122, 132, 345,346, and more...
 
 //used  //DRW_Coord basePoint;      /*!<  base point, code 10, 20 & 30 */

@@ -265,6 +265,7 @@ bool dxfRW::writeLineType(DRW_LType *ent){
 }
 
 bool dxfRW::writeLayer(DRW_Layer *ent){
+    layerHandleMap[ent->handle] = (!wlayer0 && ent->name == "0") ? 0x10 : entCount + 1;
     writer->writeString(0, "LAYER");
     if (!wlayer0 && ent->name == "0") {
         wlayer0 = true;
@@ -1373,6 +1374,25 @@ bool dxfRW::writeViewport(DRW_Viewport *ent) {
     writer->writeInt16(69, ent->vpID);
     writer->writeDouble(12, ent->centerPX);//RLZ: verify if exist in V12
     writer->writeDouble(22, ent->centerPY);//RLZ: verify if exist in V12
+    if (version > DRW::AC1009) {
+        writer->writeDouble(16, ent->viewDir.x);
+        writer->writeDouble(26, ent->viewDir.y);
+        writer->writeDouble(36, ent->viewDir.z);
+        writer->writeDouble(17, ent->viewTarget.x);
+        writer->writeDouble(27, ent->viewTarget.y);
+        writer->writeDouble(37, ent->viewTarget.z);
+        writer->writeDouble(42, ent->viewLength);
+        writer->writeDouble(43, ent->frontClip);
+        writer->writeDouble(44, ent->backClip);
+        writer->writeDouble(45, ent->viewHeight);
+        writer->writeDouble(50, ent->snapAngle);
+        writer->writeDouble(51, ent->twistAngle);
+        writer->writeInt32(90, ent->statusFlags);
+        for (auto handle : ent->frozenLayerHandles) {
+            auto layer = layerHandleMap.find(handle);
+            if (layer != layerHandleMap.end()) writer->writeString(331, toHexStr(layer->second));
+        }
+    }
     return true;
 }
 

@@ -153,6 +153,7 @@ private:
     int elParts;  /*!< parts number when convert ellipse to polyline */
     std::unordered_map<std::string,int> blockMap;
     std::unordered_map<std::string,int> textStyleMap;
+    std::unordered_map<duint32,duint32> layerHandleMap;
     std::vector<DRW_ImageDef*> imageDef;  /*!< imageDef list */
 
     int currHandle;

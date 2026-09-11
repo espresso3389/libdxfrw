@@ -872,13 +872,13 @@ bool DRW_Textstyle::parseDwg(DRW::Version version, dwgBuffer *buf, duint32 bs){
     name = sBuf->getVariableText(version, false);
     DRW_DBG("text style name: "); DRW_DBG(name.c_str()); DRW_DBG("\n");
     flags |= buf->getBit()<< 6;//style are referenced for a entity, style code 70, bit 7 (64)
-    /*dint16 xrefindex =*/ buf->getBitShort();
+    if (version <= DRW::AC1018) buf->getBitShort(); // xref index was removed in 2007
     flags |= buf->getBit() << 4; //is refx dependent, style code 70, bit 5 (16)
-    flags |= buf->getBit() << 2; //vertical text, stile code 70, bit 3 (4)
-    flags |= buf->getBit(); //if is a shape file instead of text, style code 70, bit 1 (1)
+    flags |= buf->getBit(); // shape file
+    flags |= buf->getBit() << 2; // vertical text
     height = buf->getBitDouble();
     width = buf->getBitDouble();
-    oblique = buf->getBitDouble();
+    oblique = buf->getBitDouble()*ARAD;
     genFlag = buf->getRawChar8();
     lastHeight = buf->getBitDouble();
     font = sBuf->getVariableText(version, false);

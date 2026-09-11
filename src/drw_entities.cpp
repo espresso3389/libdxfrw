@@ -2983,6 +2983,20 @@ bool DRW_Viewport::parseCode(int code, const std::unique_ptr<dxfReader>& reader)
     case 22:
         centerPY = reader->getDouble();
         break;
+    case 16: viewDir.x = reader->getDouble(); break;
+    case 26: viewDir.y = reader->getDouble(); break;
+    case 36: viewDir.z = reader->getDouble(); break;
+    case 17: viewTarget.x = reader->getDouble(); break;
+    case 27: viewTarget.y = reader->getDouble(); break;
+    case 37: viewTarget.z = reader->getDouble(); break;
+    case 42: viewLength = reader->getDouble(); break;
+    case 43: frontClip = reader->getDouble(); break;
+    case 44: backClip = reader->getDouble(); break;
+    case 45: viewHeight = reader->getDouble(); break;
+    case 50: snapAngle = reader->getDouble(); break;
+    case 51: twistAngle = reader->getDouble(); break;
+    case 90: statusFlags = reader->getInt32(); break;
+    case 331: frozenLayerHandles.push_back(reader->getHandleString()); break;
     default:
         return DRW_Point::parseCode(code, reader);
     }
@@ -3017,7 +3031,7 @@ bool DRW_Viewport::parseDwg(DRW::Version version, dwgBuffer *buf, duint32 bs){
         viewDir.y = buf->getBitDouble();
         viewDir.z = buf->getBitDouble();
         DRW_DBG("\nview direction "); DRW_DBGPT(viewDir.x, viewDir.y, viewDir.z);
-        twistAngle = buf->getBitDouble();
+        twistAngle = buf->getBitDouble()*ARAD;
         DRW_DBG("\nView twist Angle: "); DRW_DBG(twistAngle);
         viewHeight = buf->getBitDouble();
         DRW_DBG("\nview Height: "); DRW_DBG(viewHeight);
@@ -3027,7 +3041,7 @@ bool DRW_Viewport::parseDwg(DRW::Version version, dwgBuffer *buf, duint32 bs){
         DRW_DBG("\nfront Clip Z: "); DRW_DBG(frontClip);
         backClip = buf->getBitDouble();
         DRW_DBG(" back Clip Z: "); DRW_DBG(backClip);
-        snapAngle = buf->getBitDouble();
+        snapAngle = buf->getBitDouble()*ARAD;
         DRW_DBG("\n snap Angle: "); DRW_DBG(snapAngle);
         centerPX = buf->getRawDouble();
         centerPY = buf->getRawDouble();
@@ -3048,7 +3062,8 @@ bool DRW_Viewport::parseDwg(DRW::Version version, dwgBuffer *buf, duint32 bs){
     if (version > DRW::AC1014) {//2000+
         frozenLyCount = buf->getBitLong();
         DRW_DBG("Frozen Layer count?: "); DRW_DBG(frozenLyCount); DRW_DBG("\n");
-        DRW_DBG("Status Flags?: "); DRW_DBG(buf->getBitLong()); DRW_DBG("\n");
+        statusFlags = buf->getBitLong();
+        DRW_DBG("Status Flags?: "); DRW_DBG(statusFlags); DRW_DBG("\n");
         //RLZ: Warning needed separate string buffer
         DRW_DBG("Style sheet?: "); DRW_DBG(sBuf->getVariableText(version, false)); DRW_DBG("\n");
         DRW_DBG("Render mode?: "); DRW_DBG(buf->getRawChar8()); DRW_DBG("\n");
@@ -3080,8 +3095,10 @@ bool DRW_Viewport::parseDwg(DRW::Version version, dwgBuffer *buf, duint32 bs){
         DRW_DBG("ViewPort ent header: "); DRW_DBGHL(someHdl.code, someHdl.size, someHdl.ref); DRW_DBG("\n");
     }
     if (version > DRW::AC1014) {//2000+
-        for (duint8 i=0; i < frozenLyCount; ++i){
-            someHdl = buf->getHandle();
+        if (frozenLyCount > 100000 || !DRW::reserve(frozenLayerHandles, frozenLyCount)) return false;
+        for (duint32 i=0; i < frozenLyCount; ++i){
+            someHdl = buf->getOffsetHandle(handle);
+            frozenLayerHandles.push_back(someHdl.ref);
             DRW_DBG("Frozen layer handle "); DRW_DBG(i); DRW_DBG(": "); DRW_DBGHL(someHdl.code, someHdl.size, someHdl.ref); DRW_DBG("\n");
         }
         someHdl = buf->getHandle();
