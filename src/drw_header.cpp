@@ -2233,7 +2233,10 @@ fs0.close();
         DRW_DBG("\nUNKNOWN HANDLE: "); DRW_DBGHL(CONTROL.code, CONTROL.size, CONTROL.ref);
     }
     if (version > DRW::AC1014) {//2000+
-        DRW_DBG("\nFlags: "); DRW_DBGH(buf->getBitLong());//RLZ TODO change to 8 vars
+        const duint32 flags = buf->getBitLong();
+        DRW_DBG("\nFlags: "); DRW_DBGH(flags);
+        // The stored flag is inverted: bit 0x0200 disables lineweight display.
+        vars["$LWDISPLAY"] = new DRW_Variant(290, (flags & 0x0200) == 0 ? 1 : 0);
         vars["$INSUNITS"]=new DRW_Variant(70, buf->getBitShort());
         duint16 cepsntype = buf->getBitShort();
         vars["CEPSNTYPE"]=new DRW_Variant(70, cepsntype);

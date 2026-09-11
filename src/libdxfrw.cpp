@@ -1244,6 +1244,10 @@ bool dxfRW::writeInsert(DRW_Insert *ent){
     writer->writeInt16(71, ent->rowcount);
     writer->writeDouble(44, ent->colspace);
     writer->writeDouble(45, ent->rowspace);
+    // INSERT coordinates are in OCS; keep its basis for mirrored/tilted blocks.
+    writer->writeDouble(210, ent->extPoint.x);
+    writer->writeDouble(220, ent->extPoint.y);
+    writer->writeDouble(230, ent->extPoint.z);
     return true;
 }
 
