@@ -851,18 +851,28 @@ bool dwgReader::readPlineVertex(DRW_Polyline& pline, dwgBuffer *dbuf){
     objHandle oc;
     duint32 bs = 0;
 
+    // Unordered entity traversal may already have deferred these vertices.
+    auto takeVertex = [&](duint32 handle, objHandle& object) {
+        for (auto* objects : {&ObjectMap, &objObjectMap}) {
+            auto found = objects->find(handle);
+            if (found != objects->end()) {
+                object = found->second;
+                objects->erase(found);
+                return true;
+            }
+        }
+        return false;
+    };
+
     if (version < DRW::AC1018) { //pre 2004
         duint32 nextH = pline.firstEH;
         while (nextH != 0){
-            auto mit = ObjectMap.find(nextH);
-            if (mit==ObjectMap.end()) {
+            if (nextH == pline.handle || !takeVertex(nextH, oc)) {
                 nextH = 0;//end while if entity not found
                 DRW_DBG("\nWARNING: pline vertex not found\n");
                 ret = false;
                 continue;
             } else {//foud entity reads it
-                oc = mit->second;
-                ObjectMap.erase(mit);
                 DRW_Vertex vt;
                 dbuf->setPosition(oc.loc);
                 //RLZ: verify if pos is ok
@@ -877,7 +887,7 @@ bool dwgReader::readPlineVertex(DRW_Polyline& pline, dwgBuffer *dbuf){
                 buff.resetPosition();
                 DRW_DBG(" object type= "); DRW_DBG(oType); DRW_DBG("\n");
                 ret2 = vt.parseDwg(version, &buff, bs, pline.basePoint.z);
-                pline.addVertex(vt);
+                if (ret2) pline.addVertex(vt);
                 nextEntLink = vt.nextEntLink; \
                 prevEntLink = vt.prevEntLink;
                 ret = ret && ret2;
@@ -890,14 +900,11 @@ bool dwgReader::readPlineVertex(DRW_Polyline& pline, dwgBuffer *dbuf){
     } else {//2004+
         for (std::list<duint32>::iterator it = pline.hadlesList.begin() ; it != pline.hadlesList.end(); ++it){
             duint32 nextH = *it;
-            auto mit = ObjectMap.find(nextH);
-            if (mit==ObjectMap.end()) {
+            if (nextH == pline.handle || !takeVertex(nextH, oc)) {
                 DRW_DBG("\nWARNING: Entity of block not found\n");
                 ret = false;
                 continue;
             } else {//foud entity reads it
-                oc = mit->second;
-                ObjectMap.erase(mit);
                 DRW_DBG("\nPline vertex, parsing entity: "); DRW_DBGH(oc.handle); DRW_DBG(", pos: "); DRW_DBG(oc.loc); DRW_DBG("\n");
                 DRW_Vertex vt;
                 dbuf->setPosition(oc.loc);
@@ -913,7 +920,7 @@ bool dwgReader::readPlineVertex(DRW_Polyline& pline, dwgBuffer *dbuf){
                 buff.resetPosition();
                 DRW_DBG(" object type= "); DRW_DBG(oType); DRW_DBG("\n");
                 ret2 = vt.parseDwg(version, &buff, bs, pline.basePoint.z);
-                pline.addVertex(vt);
+                if (ret2) pline.addVertex(vt);
                 nextEntLink = vt.nextEntLink; \
                 prevEntLink = vt.prevEntLink;
                 ret = ret && ret2;
@@ -922,6 +929,7 @@ bool dwgReader::readPlineVertex(DRW_Polyline& pline, dwgBuffer *dbuf){
     }//end 2004+
     DRW_DBG("\nRemoved SEQEND entity: "); DRW_DBGH(pline.seqEndH.ref);DRW_DBG("\n");
     ObjectMap.erase(pline.seqEndH.ref);
+    objObjectMap.erase(pline.seqEndH.ref);
 
     return ret;
 }

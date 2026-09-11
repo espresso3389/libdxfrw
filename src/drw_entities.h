@@ -736,14 +736,7 @@ public:
         smoothM = smoothN = curvetype = 0;
     }
     void addVertex (DRW_Vertex v) {
-        std::shared_ptr<DRW_Vertex> vert = std::make_shared<DRW_Vertex>();
-        vert->basePoint.x = v.basePoint.x;
-        vert->basePoint.y = v.basePoint.y;
-        vert->basePoint.z = v.basePoint.z;
-        vert->stawidth = v.stawidth;
-        vert->endwidth = v.endwidth;
-        vert->bulge = v.bulge;
-        vertlist.push_back(vert);
+        vertlist.push_back(std::make_shared<DRW_Vertex>(v));
     }
     void appendVertex (std::shared_ptr<DRW_Vertex> const& v) {
         vertlist.push_back(v);

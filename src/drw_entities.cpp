@@ -1707,7 +1707,10 @@ bool DRW_Vertex::parseDwg(DRW::Version version, dwgBuffer *buf, duint32 bs, doub
         DRW_DBG("flags value: "); DRW_DBG(flags);
         basePoint = buf->get3BitDouble();
         DRW_DBG("basePoint: "); DRW_DBGPT(basePoint.x, basePoint.y, basePoint.z);
+        // DWG vertex types imply DXF flags in addition to the stored flags.
+        flags |= oType == 0x0B ? 32 : oType == 0x0C ? 64 : 192;
     } else if (oType == 0x0E) { //PFACE FACE
+        flags = 128;
         vindex1 = buf->getBitShort();
         vindex2 = buf->getBitShort();
         vindex3 = buf->getBitShort();
@@ -2174,7 +2177,8 @@ bool DRW_Spline::parseDwg(DRW::Version version, dwgBuffer *buf, duint32 bs){
         controllist.push_back(std::make_shared<DRW_Coord>(buf->get3BitDouble()));
         if (weight) {
             DRW_DBG("\n w: ");
-            DRW_DBG(buf->getBitDouble()); //RLZ Warning: D (BD or RD)
+            weightlist.push_back(buf->getBitDouble());
+            DRW_DBG(weightlist.back());
         }
     }
     if (!DRW::reserve( fitlist, nfit)) {

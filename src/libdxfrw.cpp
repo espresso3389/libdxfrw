@@ -815,7 +815,11 @@ bool dxfRW::writePolyline(DRW_Polyline *ent) {
     writer->writeString(0, "POLYLINE");
     writeEntity(ent);
     if (version > DRW::AC1009) {
-        if (ent->flags & 8 || ent->flags & 16)
+        if (ent->flags & 64)
+            writer->writeString(100, "AcDbPolyFaceMesh");
+        else if (ent->flags & 16)
+            writer->writeString(100, "AcDbPolygonMesh");
+        else if (ent->flags & 8)
             writer->writeString(100, "AcDb3dPolyline");
         else
             writer->writeString(100, "AcDb2dPolyline");
@@ -834,7 +838,7 @@ bool dxfRW::writePolyline(DRW_Polyline *ent) {
     if (ent->defendwidth != 0) {
         writer->writeDouble(41, ent->defendwidth);
     }
-    if (ent->flags & 16 || ent->flags & 32) {
+    if (ent->flags & 16 || ent->flags & 64) {
         writer->writeInt16(71, ent->vertexcount);
         writer->writeInt16(72, ent->facecount);
     }
@@ -858,9 +862,18 @@ bool dxfRW::writePolyline(DRW_Polyline *ent) {
     for (int i = 0;  i< vertexnum; i++){
         DRW_Vertex *v = ent->vertlist.at(i).get();
         writer->writeString(0, "VERTEX");
-        writeEntity(ent);
-        if (version > DRW::AC1009)
-            writer->writeString(100, "AcDbVertex");
+        v->layer = ent->layer;
+        writeEntity(v);
+        if (version > DRW::AC1009) {
+            if ((v->flags & 128) && !(v->flags & 64)) {
+                writer->writeString(100, "AcDbFaceRecord");
+            } else {
+                writer->writeString(100, "AcDbVertex");
+                writer->writeString(100, (v->flags & 128) ? "AcDbPolyFaceMeshVertex" :
+                                        (v->flags & 64) ? "AcDbPolygonMeshVertex" :
+                                        (v->flags & 32) ? "AcDb3dPolylineVertex" : "AcDb2dVertex");
+            }
+        }
         if ( (v->flags & 128) && !(v->flags & 64) ) {
             writer->writeDouble(10, 0);
             writer->writeDouble(20, 0);
@@ -877,7 +890,7 @@ bool dxfRW::writePolyline(DRW_Polyline *ent) {
         if (v->bulge != 0)
             writer->writeDouble(42, v->bulge);
         if (v->flags != 0) {
-            writer->writeInt16(70, ent->flags);
+            writer->writeInt16(70, v->flags);
         }
         if (v->flags & 2) {
             writer->writeDouble(50, v->tgdir);
@@ -920,6 +933,17 @@ bool dxfRW::writeSpline(DRW_Spline *ent){
         writer->writeInt16(74, ent->nfit);
         writer->writeDouble(42, ent->tolknot);
         writer->writeDouble(43, ent->tolcontrol);
+        writer->writeDouble(44, ent->tolfit);
+        if (ent->tgStart.x != 0 || ent->tgStart.y != 0 || ent->tgStart.z != 0) {
+            writer->writeDouble(12, ent->tgStart.x);
+            writer->writeDouble(22, ent->tgStart.y);
+            writer->writeDouble(32, ent->tgStart.z);
+        }
+        if (ent->tgEnd.x != 0 || ent->tgEnd.y != 0 || ent->tgEnd.z != 0) {
+            writer->writeDouble(13, ent->tgEnd.x);
+            writer->writeDouble(23, ent->tgEnd.y);
+            writer->writeDouble(33, ent->tgEnd.z);
+        }
         //RLZ: warning check if nknots are correct and ncontrol
         for (int i = 0;  i< ent->nknots; i++){
             writer->writeDouble(40, ent->knotslist.at(i));
@@ -932,6 +956,11 @@ bool dxfRW::writeSpline(DRW_Spline *ent){
             writer->writeDouble(10, crd->x);
             writer->writeDouble(20, crd->y);
             writer->writeDouble(30, crd->z);
+        }
+        for (auto const& point : ent->fitlist) {
+            writer->writeDouble(11, point->x);
+            writer->writeDouble(21, point->y);
+            writer->writeDouble(31, point->z);
         }
     } else {
         //RLZ: TODO convert spline in polyline (not exist in acad 12)
