@@ -15,6 +15,7 @@
 
 #include <unordered_map>
 #include <list>
+#include <set>
 #include <memory>
 #include "drw_textcodec.h"
 #include "dwgutil.h"
@@ -109,6 +110,7 @@ public:
     }
     bool parseDwg(DRW::Version version, dwgBuffer *buf, duint32 bs=0) override;
     std::list<duint32>handlesList;
+    std::set<duint32> softOwnedHandles; // Absent soft-owned table records may be purged.
     std::vector<duint32> indexedHandles; // Includes empty slots used by proxy graphics.
 };
 
@@ -196,6 +198,7 @@ protected:
 //    duint32 blockCtrl;
     duint32 nextEntLink{0};
     duint32 prevEntLink{0};
+    std::set<duint32> missingBlockRecords;
 
 private:
     template <class T>
@@ -207,7 +210,9 @@ private:
             prevEntLink = e.prevEntLink;
         }
 
-        return ret;
+        // Deleted blocks can leave their former children in the object map.
+        // Suppress those children without treating a successful parse as failure.
+        return ret && missingBlockRecords.count(e.parentHandle) == 0;
     }
 
 };

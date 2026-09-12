@@ -537,7 +537,12 @@ bool dwgReader::readDwgTables(DRW_Header& hdr, dwgBuffer *dbuf) {
             mit = ObjectMap.find(*it);
             if (mit==ObjectMap.end()) {
                 DRW_DBG("\nWARNING: block record not found\n");
-                ret = false;
+                // BLOCK_CONTROL may retain soft ownership references to purged
+                // records. Model/paper space are hard-owned and must still exist.
+                if (blockControl.softOwnedHandles.count(*it) == 0)
+                    ret = false;
+                else
+                    missingBlockRecords.insert(*it);
             } else {
                 oc = mit->second;
                 ObjectMap.erase(mit);
@@ -1444,6 +1449,8 @@ int unkData=0;
     for (int i =0; i< numEntries; i++){
         objectH = buf->getOffsetHandle(handle);
         indexedHandles.push_back(objectH.ref);
+        if (objectH.code == 2) softOwnedHandles.insert(objectH.ref);
+        else if (objectH.code == 3) softOwnedHandles.erase(objectH.ref);
         if (objectH.ref != 0) //in vports R14  I found some NULL handles
             handlesList.push_back (objectH.ref);
         DRW_DBG(" objectH Handle: "); DRW_DBGHL(objectH.code, objectH.size, objectH.ref); DRW_DBG("\n");

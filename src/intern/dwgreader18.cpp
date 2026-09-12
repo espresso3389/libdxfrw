@@ -485,6 +485,7 @@ bool dwgReader18::readDwgClasses(){
         duint32 hSize = dataBuf.getRawLong32();
         DRW_DBG("\n2010+ & MV> 3, height 32b: "); DRW_DBG(hSize);
     }
+    const duint32 stringStreamBase = dataBuf.getPosition() * 8;
     duint32 bitSize = 0;
     if (version > DRW::AC1021) {//2007+
         bitSize = dataBuf.getRawLong32();
@@ -507,7 +508,12 @@ bool dwgReader18::readDwgClasses(){
     //prepare string stream for 2007+
     if (version > DRW::AC1021) {//2007+
         strBuf = &strBuff;
-        duint32 strStartPos = bitSize+191;//size in bits + 24 bytes (sn+size+hSize) - 1 bit (endbit)
+        // The optional high-size word changes the base from 20 to 24 bytes.
+        // Older R2010 files omit it; a fixed +191 seeks 32 bits too far.
+        const duint64 stringEnd = static_cast<duint64>(stringStreamBase) + bitSize;
+        if (!bitSize || stringEnd > static_cast<duint64>(uncompSize) * 8)
+            return false;
+        duint32 strStartPos = static_cast<duint32>(stringEnd - 1);
         DRW_DBG("\nstrStartPos: "); DRW_DBG(strStartPos);
         strBuff.setPosition(strStartPos >> 3);
         strBuff.setBitPos(strStartPos & 7);
