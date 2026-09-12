@@ -194,6 +194,25 @@ DRW_DBG("\n***************************** parsing table entry *******************
     return buf->isGood();
 }
 
+bool DRW_SortentsTable::parseDwg(DRW::Version version, dwgBuffer *buf, duint32 bs) {
+    if (!DRW_TableEntry::parseDwg(version, buf, nullptr, bs)) return false;
+    const dint32 count = buf->getBitLong();
+    if (count < 0 || static_cast<duint32>(count) > buf->size() ||
+        numReactors < 0 || static_cast<duint32>(numReactors) > buf->size()) return false;
+    entries.resize(count);
+    // Sort handles belong to the data stream, before the common object handles.
+    for (auto& entry : entries) entry.second = buf->getHandle().ref;
+    if (!buf->isGood() || objSize >= buf->size() * 8 ||
+        !buf->setPosition(objSize >> 3)) return false;
+    buf->setBitPos(objSize & 7);
+    parentHandle = buf->getOffsetHandle(handle).ref;
+    for (int i = 0; i < numReactors; ++i) buf->getOffsetHandle(handle);
+    if (xDictFlag != 1) buf->getOffsetHandle(handle);
+    blockHandle = buf->getOffsetHandle(handle).ref;
+    for (auto& entry : entries) entry.first = buf->getOffsetHandle(handle).ref;
+    return buf->isGood() && blockHandle != 0;
+}
+
 //! Class to handle dimstyle entries
 /*!
 *  Class to handle ldim style symbol table entries
@@ -451,6 +470,7 @@ bool DRW_LType::parseCode(int code, const std::unique_ptr<dxfReader>& reader){
     case 73:
         size = reader->getInt32();
         path.clear();
+        shapes.clear();
         if (!DRW::reserve( path, size)) {
             return false;
         }
@@ -460,11 +480,22 @@ bool DRW_LType::parseCode(int code, const std::unique_ptr<dxfReader>& reader){
         break;
     case 49:
         path.push_back(reader->getDouble());
+        shapes.emplace_back();
         pathIdx++;
         break;
-/*    case 74:
-        haveShape = reader->getInt32();
-        break;*/
+    case 74: case 75: case 340: case 46: case 50: case 44: case 45: case 9:
+        if (shapes.empty()) return false;
+        switch (code) {
+        case 74: shapes.back().flags = reader->getInt32(); break;
+        case 75: shapes.back().code = reader->getInt32(); break;
+        case 340: shapes.back().style = reader->getHandleString(); break;
+        case 46: shapes.back().scale = reader->getDouble(); break;
+        case 50: shapes.back().rotation = reader->getDouble(); break;
+        case 44: shapes.back().x = reader->getDouble(); break;
+        case 45: shapes.back().y = reader->getDouble(); break;
+        case 9: shapes.back().text = reader->getUtf8String(); break;
+        }
+        break;
     default:
         return DRW_TableEntry::parseCode(code, reader);
     }
@@ -516,19 +547,21 @@ bool DRW_LType::parseDwg(DRW::Version version, dwgBuffer *buf, duint32 bs){
     DRW_DBG(" pattern length: "); DRW_DBG(length);
     char align = buf->getRawChar8();
     DRW_DBG(" align: "); DRW_DBG(std::string(&align, 1));
-    size = buf->getRawChar8();
+    size = static_cast<duint8>(buf->getRawChar8());
     DRW_DBG(" num dashes, size: "); DRW_DBG(size);
     DRW_DBG("\n    dashes:\n");
     bool haveStrArea = false;
     for (int i=0; i< size; i++){
         path.push_back(buf->getBitDouble());
-        /*int bs1 =*/ buf->getBitShort();
-        /*double d1= */buf->getRawDouble();
-        /*double d2=*/ buf->getRawDouble();
-        /*double d3= */buf->getBitDouble();
-        /*double d4= */buf->getBitDouble();
-        int bs2 = buf->getBitShort();
-        if((bs2 & 2) !=0) haveStrArea = true;
+        DRW_LTypeShape shape;
+        shape.code = buf->getBitShort();
+        shape.x = buf->getRawDouble();
+        shape.y = buf->getRawDouble();
+        shape.scale = buf->getBitDouble();
+        shape.rotation = buf->getBitDouble() * ARAD;
+        shape.flags = buf->getBitShort();
+        if ((shape.flags & 2) != 0) haveStrArea = true;
+        shapes.push_back(shape);
     }
     for (unsigned i=0; i<path.size() ; i++){
         DRW_DBG(", "); DRW_DBG(path[i]); DRW_DBG("\n");
@@ -574,17 +607,12 @@ bool DRW_LType::parseDwg(DRW::Version version, dwgBuffer *buf, duint32 bs){
         DRW_DBG(" XDicObj control Handle: "); DRW_DBGHL(XDicObjH.code, XDicObjH.size, XDicObjH.ref); DRW_DBG("\n");
         DRW_DBG("\n Remaining bytes: "); DRW_DBG(buf->numRemainingBytes()); DRW_DBG("\n");
     }
-    if(size>0){
-        dwgHandle XRefH = buf->getHandle();
-        DRW_DBG(" XRefH control Handle: "); DRW_DBGHL(XRefH.code, XRefH.size, XRefH.ref); DRW_DBG("\n");
-        dwgHandle shpHandle = buf->getHandle();
-        DRW_DBG(" shapeFile Handle: "); DRW_DBGHL(shpHandle.code, shpHandle.size, shpHandle.ref);
-        DRW_DBG("\n Remaining bytes: "); DRW_DBG(buf->numRemainingBytes()); DRW_DBG("\n");
-    }
-    dwgHandle shpHandle = buf->getHandle();
-    DRW_DBG(" shapeFile +1 Handle ??: "); DRW_DBGHL(shpHandle.code, shpHandle.size, shpHandle.ref); DRW_DBG("\n");
+    // The xref handle is followed by one style handle for every dash,
+    // including simple dashes whose style handle is null.
+    buf->getHandle();
+    for (auto& shape : shapes)
+        shape.style = buf->getOffsetHandle(handle).ref;
 
-    DRW_DBG("\n Remaining bytes: "); DRW_DBG(buf->numRemainingBytes()); DRW_DBG("\n");
 //    RS crc;   //RS */
     return buf->isGood();
 }

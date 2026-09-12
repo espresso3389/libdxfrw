@@ -121,6 +121,16 @@ private:
 };
 
 
+//! Saved entity redraw order. Sort handles are values, not object references.
+class DRW_SortentsTable : public DRW_TableEntry {
+    SETOBJFRIENDS
+public:
+    duint32 blockHandle = 0;
+    std::vector<std::pair<duint32, duint32>> entries;
+protected:
+    bool parseDwg(DRW::Version version, dwgBuffer *buf, duint32 bs=0) override;
+};
+
 //! Class to handle dimstyle entries
 /*!
 *  Class to handle dim style symbol table entries
@@ -240,6 +250,13 @@ public:
 *  @author Rallaz
 */
 /*TODO: handle complex lineType*/
+struct DRW_LTypeShape {
+    int flags = 0, code = 0;
+    double x = 0, y = 0, scale = 1, rotation = 0;
+    duint32 style = 0;
+    UTF8STRING text;
+};
+
 class DRW_LType : public DRW_TableEntry {
     SETOBJFRIENDS
 public:
@@ -251,6 +268,8 @@ public:
         size = 0;
         length = 0.0;
         pathIdx = 0;
+        path.clear();
+        shapes.clear();
         DRW_TableEntry::reset();
     }
 
@@ -266,6 +285,7 @@ public:
     double length;            /*!< total length of pattern, code 40 */
 //    int haveShape;      /*!< complex linetype type, code 74 */
     std::vector<double> path;  /*!< trace, point or space length sequence, code 49 */
+    std::vector<DRW_LTypeShape> shapes; // One record per dash, including simple dashes.
 private:
     int pathIdx;
 };

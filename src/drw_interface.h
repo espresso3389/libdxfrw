@@ -38,6 +38,8 @@ public:
 
     virtual void addRegion(const DRW_Region&) {}
     virtual void addLayout(const DRW_Layout&) {}
+    virtual void addSortentsTable(const DRW_SortentsTable&) {}
+    virtual void addProxyEntity(const DRW_ProxyEntity&) {}
 
     /** Called for every line Type.  */
     virtual void addLType(const DRW_LType& data) = 0;
@@ -193,6 +195,7 @@ public:
      */
     virtual void addPlotSettings(const DRW_PlotSettings *data) = 0;
 
+    virtual void writeClasses() {}
     virtual void writeHeader(DRW_Header& data) = 0;
     virtual void writeBlocks() = 0;
     virtual void writeBlockRecords() = 0;

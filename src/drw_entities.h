@@ -31,7 +31,7 @@ namespace DRW {
     enum ETYPE {
         E3DFACE,
 //        E3DSOLID, //encrypted proprietary data
-//        ACAD_PROXY_ENTITY,
+        ACAD_PROXY_ENTITY,
         ARC,
 //        ATTDEF,
 //        ATTRIB,
@@ -178,6 +178,18 @@ private:
 	std::shared_ptr<DRW_Variant> curr;
 };
 
+
+// Saved vector graphics for entities whose semantic payload is not decoded.
+class DRW_ProxyEntity : public DRW_Entity {
+    SETENTFRIENDS
+public:
+    DRW_ProxyEntity() { eType = DRW::ACAD_PROXY_ENTITY; }
+    void applyExtrusion() override {} // The cache already uses WCS coordinates.
+    std::vector<duint32> sourceLayers;
+    std::vector<duint32> sourceLinetypes;
+protected:
+    bool parseDwg(DRW::Version version, dwgBuffer *buf, duint32 bs=0) override;
+};
 
 //! Class to handle point entity
 /*!

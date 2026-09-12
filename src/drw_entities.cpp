@@ -268,15 +268,16 @@ bool DRW_Entity::parseDwg(DRW::Version version, dwgBuffer *buf, dwgBuffer* strBu
     duint8 graphFlag = buf->getBit(); //B
     DRW_DBG(" graphFlag: "); DRW_DBG(graphFlag); DRW_DBG("\n");
     if (graphFlag) {
-        duint32 graphDataSize = buf->getRawLong32();  //RL 32bits
-        DRW_DBG("graphData in bytes: "); DRW_DBG(graphDataSize); DRW_DBG("\n");
-// RLZ: TODO
-        //skip graphData bytes
-        duint8 *tmpGraphData = new duint8[graphDataSize];
-        buf->getBytes(tmpGraphData, graphDataSize);
-        dwgBuffer tmpGraphDataBuf(tmpGraphData, graphDataSize, buf->decoder);
-        DRW_DBG("graph data remaining bytes: "); DRW_DBG(tmpGraphDataBuf.numRemainingBytes()); DRW_DBG("\n");
-        delete[]tmpGraphData;
+        const duint64 size = version >= DRW::AC1024
+            ? buf->getBitLongLong() : buf->getRawLong32();
+        if (buf->numRemainingBytes() < 0 || size > static_cast<duint64>(buf->numRemainingBytes())
+            || size > 16 * 1024 * 1024) return false;
+        std::vector<duint8> graphics(static_cast<size_t>(size));
+        if (size && !buf->getBytes(graphics.data(), size)) return false;
+        if (eType == DRW::ACAD_PROXY_ENTITY && size) {
+            proxyGraphics.assign(reinterpret_cast<const char*>(graphics.data()), graphics.size());
+            numProxyGraph = static_cast<int>(size);
+        }
     }
     if (version < DRW::AC1015) {//14-
         objSize = buf->getRawLong32();  //RL 32bits object size in bits
@@ -318,7 +319,7 @@ bool DRW_Entity::parseDwg(DRW::Version version, dwgBuffer *buf, dwgBuffer* strBu
         DRW_DBG(", haveNextLinks (forced): "); DRW_DBG(haveNextLinks); DRW_DBG("\n");
     }
 //ENC color
-    color = buf->getEnColor(version); //BS or CMC //ok for R14 or negate
+    color = buf->getEnColor(version, &color24); //BS or CMC //ok for R14 or negate
     ltypeScale = buf->getBitDouble(); //BD
     DRW_DBG(" entity color: "); DRW_DBG(color);
     DRW_DBG(" ltScale: "); DRW_DBG(ltypeScale); DRW_DBG("\n");
@@ -613,6 +614,14 @@ bool DRW_Circle::parseCode(int code, const std::unique_ptr<dxfReader>& reader){
     }
 
     return true;
+}
+
+bool DRW_ProxyEntity::parseDwg(DRW::Version version, dwgBuffer *buf, duint32 bs) {
+    // MULTILEADER starts at R2007, where the common handle stream is located
+    // independently of the entity-specific data and annotation contexts.
+    return version >= DRW::AC1021
+        && DRW_Entity::parseDwg(version, buf, nullptr, bs)
+        && DRW_Entity::parseDwgEntHandle(version, buf);
 }
 
 bool DRW_Region::parseDwg(DRW::Version version, dwgBuffer *buf, duint32 bs) {

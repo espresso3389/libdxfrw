@@ -86,6 +86,10 @@ void DRW_Class::toDwgType(){
         dwgType = 102;
     else if (recName == "ACAD_TABLE")
         dwgType = 103;
+    else if (recName == "SORTENTSTABLE")
+        dwgType = 104;
+    else if (recName == "MULTILEADER" || recName == "MLEADER")
+        dwgType = 105;
     else
         dwgType =0;
 }

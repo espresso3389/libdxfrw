@@ -56,6 +56,23 @@ bool dx_iface::fileImport(const std::string& fileI, dx_data *fData, bool debug){
 
 bool dx_iface::fileExport(const std::string& file, DRW::Version v, bool binary, dx_data *fData, bool debug){
     cData = fData;
+    // The DXF writer allocates new handles. Materialize the saved DWG draw
+    // order first, so neither stale references nor unordered-map iteration can
+    // move fills above their linework. Each block keeps its own entity list.
+    auto reorder = [this](dx_ifaceBlock* block) {
+        const auto& order = cData->drawOrder;
+        if (!std::any_of(block->ent.begin(), block->ent.end(),
+                [&order](const DRW_Entity* e) { return order.count(e->handle) != 0; })) return;
+        auto key = [&order](const DRW_Entity* e) -> duint64 {
+            auto found = order.find(e->handle);
+            duint32 value = found == order.end() ? e->handle : found->second;
+            // A zero sort handle places an entity on top; equal keys stay stable.
+            return value == 0 ? (duint64(1) << 32) : value;
+        };
+        block->ent.sort([&key](const DRW_Entity* a, const DRW_Entity* b) { return key(a) < key(b); });
+    };
+    reorder(cData->mBlock);
+    for (auto block : cData->blocks) reorder(block);
     dxfW = new dxfRW(file.c_str());
     dxfW->setLayouts(cData->layouts);
     if (debug) {
@@ -75,6 +92,9 @@ bool dx_iface::fileExport(const std::string& file, DRW::Version v, bool binary, 
 
 void dx_iface::writeEntity(DRW_Entity* e){
     switch (e->eType) {
+    case DRW::ACAD_PROXY_ENTITY:
+        dxfW->writeProxyEntity(static_cast<DRW_ProxyEntity*>(e));
+        break;
     case DRW::E3DFACE:
         dxfW->write3dface(static_cast<DRW_3Dface*>(e));
         break;

@@ -44,6 +44,8 @@ public:
 
     bool write(DRW_Interface *interface_, DRW::Version ver, bool bin);
     bool writeLineType(DRW_LType *ent);
+    void writeProxyClass();
+    bool writeProxyEntity(DRW_ProxyEntity *ent);
     bool writeLayer(DRW_Layer *ent);
     bool writeDimstyle(DRW_Dimstyle *ent);
     bool writeTextstyle(DRW_Textstyle *ent);
@@ -158,7 +160,12 @@ private:
     int elParts;  /*!< parts number when convert ellipse to polyline */
     std::unordered_map<std::string,int> blockMap;
     std::unordered_map<std::string,int> textStyleMap;
+    std::unordered_map<duint32,duint32> linetypeStyleHandles;
     std::unordered_map<duint32,duint32> layerHandleMap;
+    std::unordered_map<duint32,duint32> proxyLayerIndices;
+    std::unordered_map<duint32,duint32> proxyLinetypeIndices;
+    duint32 nextProxyLayer = 0;
+    duint32 nextProxyLinetype = 1; // Continuous is index 0; ByBlock/ByLayer are sentinels.
     std::vector<DRW_ImageDef*> imageDef;  /*!< imageDef list */
 
     int currHandle;

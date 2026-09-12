@@ -224,6 +224,7 @@ bool dwgReader::readDwgTables(DRW_Header& hdr, dwgBuffer *dbuf) {
             if(ret)
                 ret = ret2;
         }
+        proxyLinetypes = ltControl.indexedHandles;
         for (auto it = ltControl.handlesList.begin(); it != ltControl.handlesList.end(); ++it) {
             mit = ObjectMap.find(*it);
             if (mit==ObjectMap.end()) {
@@ -283,6 +284,7 @@ bool dwgReader::readDwgTables(DRW_Header& hdr, dwgBuffer *dbuf) {
             if(ret)
                 ret = ret2;
         }
+        proxyLayers = layControl.indexedHandles;
         for (auto it = layControl.handlesList.begin(); it != layControl.handlesList.end(); ++it) {
             mit = ObjectMap.find(*it);
             if (mit==ObjectMap.end()) {
@@ -1118,6 +1120,19 @@ bool dwgReader::readDwgEntity(dwgBuffer *dbuf, objHandle& obj, DRW_Interface& in
                 intfa.addInsert(e);
             }
             break; }
+        case 105: { // MULTILEADER saved vector graphics
+            if (version < DRW::AC1021) {
+                objObjectMap[obj.handle] = obj;
+                break;
+            }
+            DRW_ProxyEntity e;
+            if (entryParse(e, buff, bs, ret)) {
+                e.sourceLayers = proxyLayers;
+                e.sourceLinetypes = proxyLinetypes;
+                intfa.addProxyEntity(e);
+            }
+            break;
+        }
         case 103: { // ACAD_TABLE: cached geometry in R2004/R2007
             if (version < DRW::AC1018 || version > DRW::AC1021) {
                 objObjectMap[obj.handle] = obj;
@@ -1368,6 +1383,11 @@ bool dwgReader::readDwgObject(dwgBuffer *dbuf, objHandle& obj, DRW_Interface& in
                 }
             }
             break; }
+        case 104: {
+            DRW_SortentsTable table;
+            ret = table.parseDwg(version, &buff, bs);
+            if (ret && blockRecordmap.count(table.blockHandle)) intfa.addSortentsTable(table);
+            break; }
         case 102: {
             DRW_ImageDef e;
             ret = e.parseDwg(version, &buff, bs);
@@ -1423,6 +1443,7 @@ int unkData=0;
 
     for (int i =0; i< numEntries; i++){
         objectH = buf->getOffsetHandle(handle);
+        indexedHandles.push_back(objectH.ref);
         if (objectH.ref != 0) //in vports R14  I found some NULL handles
             handlesList.push_back (objectH.ref);
         DRW_DBG(" objectH Handle: "); DRW_DBGHL(objectH.code, objectH.size, objectH.ref); DRW_DBG("\n");

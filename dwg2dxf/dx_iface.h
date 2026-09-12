@@ -24,6 +24,9 @@ public:
     bool fileImport(const std::string& fileI, dx_data *fData, bool debug);
     bool fileExport(const std::string& file, DRW::Version v, bool binary, dx_data *fData, bool debug);
     void writeEntity(DRW_Entity* e);
+    void writeClasses() override {
+        if (cData->hasProxyGraphics) dxfW->writeProxyClass();
+    }
 
 //reimplement virtual DRW_Interface functions
 
@@ -54,6 +57,10 @@ public:
     }
     virtual void addLayout(const DRW_Layout& data){
         if (cData->layouts.size() < 64) cData->layouts.push_back(data);
+    }
+
+    virtual void addSortentsTable(const DRW_SortentsTable& table){
+        for (const auto& entry : table.entries) cData->drawOrder[entry.first] = entry.second;
     }
 
     //blocks
@@ -152,6 +159,10 @@ public:
     }
     virtual void addViewport(const DRW_Viewport& data){
         currentBlock->ent.push_back(new DRW_Viewport(data));
+    }
+    virtual void addProxyEntity(const DRW_ProxyEntity& data) {
+        cData->hasProxyGraphics = true;
+        currentBlock->ent.push_back(new DRW_ProxyEntity(data));
     }
     virtual void addImage(const DRW_Image *data){
         dx_ifaceImg *img = new dx_ifaceImg(*data);

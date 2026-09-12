@@ -335,8 +335,7 @@ duint64 dwgBuffer::getBitLongLong(){
     dint8 b = get3Bits();
     duint64 ret=0;
     for (duint8 i=0; i<b; i++){
-        ret = ret << 8;
-        ret |= getRawChar8();
+        ret |= static_cast<duint64>(getRawChar8()) << (8 * i);
     }
     return ret;
 }
@@ -785,7 +784,8 @@ duint32 dwgBuffer::getCmColor(DRW::Version v) {
 * For R2004+, can be CMC or ENC
 * RGB value, first 4bits 0xC0 => ByLayer, 0xC1 => ByBlock, 0xC2 => RGB,  0xC3 => last 4 are ACIS
 */
-duint32 dwgBuffer::getEnColor(DRW::Version v) {
+duint32 dwgBuffer::getEnColor(DRW::Version v, dint32* trueColor) {
+    if (trueColor) *trueColor = -1;
     if (v < DRW::AC1018) //2000-
         return getSBitShort();
     duint32 rgb = 0;
@@ -809,6 +809,7 @@ duint32 dwgBuffer::getEnColor(DRW::Version v) {
     else {
         if (flags & 0x80) {
             rgb = getBitLong();
+            if (trueColor && (rgb >> 24) == 0xC2) *trueColor = rgb & 0xFFFFFF;
             DRW_DBG("\nRGB COLOR: "); DRW_DBGH(rgb);
         }
     }

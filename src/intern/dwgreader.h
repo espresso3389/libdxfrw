@@ -109,6 +109,7 @@ public:
     }
     bool parseDwg(DRW::Version version, dwgBuffer *buf, duint32 bs=0) override;
     std::list<duint32>handlesList;
+    std::vector<duint32> indexedHandles; // Includes empty slots used by proxy graphics.
 };
 
 
@@ -170,6 +171,8 @@ public:
     std::unordered_map<duint32, DRW_Block_Record*> blockRecordmap;
     std::unordered_map<duint32, int> paperEntityOrder;
     int nextViewportId = 2;
+    std::vector<duint32> proxyLayers;
+    std::vector<duint32> proxyLinetypes;
     std::unordered_map<duint32, DRW_AppId*> appIdmap;
 //    duint32 currBlock;
     duint8 maintenanceVersion{0};

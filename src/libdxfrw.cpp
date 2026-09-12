@@ -126,6 +126,7 @@ bool dxfRW::write(DRW_Interface *interface_, DRW::Version ver, bool bin){
     if (ver > DRW::AC1009) {
         writer->writeString(0, "SECTION");
         writer->writeString(2, "CLASSES");
+        iface->writeClasses();
         writer->writeString(0, "ENDSEC");
     }
     writer->writeString(0, "SECTION");
@@ -237,8 +238,11 @@ bool dxfRW::writeLineType(DRW_LType *ent){
     transform(strname.begin(), strname.end(), strname.begin(),::toupper);
 //do not write linetypes handled by library
     if (strname == "BYLAYER" || strname == "BYBLOCK" || strname == "CONTINUOUS") {
+        proxyLinetypeIndices[ent->handle] = strname == "CONTINUOUS" ? 0
+            : strname == "BYBLOCK" ? 32766 : 32767;
         return true;
     }
+    proxyLinetypeIndices[ent->handle] = nextProxyLinetype++;
     writer->writeString(0, "LTYPE");
     if (version > DRW::AC1009) {
         writer->writeString(5, toHexStr(++entCount));
@@ -260,13 +264,87 @@ bool dxfRW::writeLineType(DRW_LType *ent){
     for (unsigned int i = 0;  i< ent->path.size(); i++){
         writer->writeDouble(49, ent->path.at(i));
         if (version > DRW::AC1009) {
-            writer->writeInt16(74, 0);
+            const DRW_LTypeShape shape = i < ent->shapes.size() ? ent->shapes[i] : DRW_LTypeShape{};
+            writer->writeInt16(74, shape.flags);
+            if (shape.flags) {
+                auto& styleHandle = linetypeStyleHandles[shape.style];
+                if (shape.style && !styleHandle) styleHandle = ++entCount;
+                writer->writeInt16(75, shape.code);
+                writer->writeString(340, toHexStr(styleHandle));
+                writer->writeDouble(46, shape.scale);
+                writer->writeDouble(50, shape.rotation);
+                writer->writeDouble(44, shape.x);
+                writer->writeDouble(45, shape.y);
+                if (shape.flags & 2) writer->writeUtf8String(9, shape.text);
+            }
         }
     }
     return true;
 }
 
+void dxfRW::writeProxyClass() {
+    // The first application class has ID 500 in the proxy entity record.
+    writer->writeString(0, "CLASS");
+    writer->writeString(1, "MULTILEADER");
+    writer->writeString(2, "AcDbMLeader");
+    writer->writeString(3, "ACDB_MLEADER_CLASS");
+    writer->writeInt32(90, 1025);
+    writer->writeInt16(280, 1); // Original class implementation is not available.
+    writer->writeInt16(281, 1); // Entity class.
+}
+
+bool dxfRW::writeProxyEntity(DRW_ProxyEntity *ent) {
+    std::string graphics = ent->proxyGraphics;
+    auto read32 = [&](size_t pos) {
+        duint32 value = 0;
+        for (unsigned i = 0; i < 4; ++i)
+            value |= static_cast<duint32>(static_cast<unsigned char>(graphics[pos + i])) << (8 * i);
+        return value;
+    };
+    // DWG caches index the original symbol tables, including null slots.
+    // DXF table output has a different order and adds standard linetypes.
+    for (size_t pos = 8; pos + 8 <= graphics.size();) {
+        const duint32 size = read32(pos), command = read32(pos + 4);
+        if (size < 8 || size > graphics.size() - pos) break;
+        if (size >= 12 && (command == 16 || command == 18)) {
+            const duint32 index = read32(pos + 8);
+            const auto& handles = command == 16 ? ent->sourceLayers : ent->sourceLinetypes;
+            const auto& indices = command == 16 ? proxyLayerIndices : proxyLinetypeIndices;
+            if (command == 16 || index < 32766) {
+                auto found = index < handles.size() ? indices.find(handles[index]) : indices.end();
+                const duint32 mapped = found != indices.end() ? found->second
+                    : command == 16 ? 0xffffffff : 32767;
+                for (unsigned i = 0; i < 4; ++i)
+                    graphics[pos + 8 + i] = static_cast<char>((mapped >> (8 * i)) & 0xff);
+            }
+        }
+        pos += size;
+    }
+    writer->writeString(0, "ACAD_PROXY_ENTITY");
+    writeEntity(ent);
+    writer->writeString(100, "AcDbProxyEntity");
+    writer->writeInt32(90, 498);
+    writer->writeInt32(91, 500);
+    writer->writeInt32(92, graphics.size());
+    static const char hex[] = "0123456789ABCDEF";
+    for (size_t start = 0; start < graphics.size(); start += 127) {
+        std::string chunk;
+        for (size_t i = start; i < std::min(start + 127, graphics.size()); ++i) {
+            const unsigned char byte = graphics[i];
+            chunk += hex[byte >> 4];
+            chunk += hex[byte & 15];
+        }
+        writer->writeString(310, chunk);
+    }
+    writer->writeInt32(93, 0);
+    writer->writeInt32(94, 0);
+    writer->writeInt32(95, 0);
+    writer->writeInt16(70, 0);
+    return true;
+}
+
 bool dxfRW::writeLayer(DRW_Layer *ent){
+    proxyLayerIndices[ent->handle] = nextProxyLayer++;
     layerHandleMap[ent->handle] = (!wlayer0 && ent->name == "0") ? 0x10 : entCount + 1;
     writer->writeString(0, "LAYER");
     if (!wlayer0 && ent->name == "0") {
@@ -320,8 +398,11 @@ bool dxfRW::writeTextstyle(DRW_Textstyle *ent){
         }
     }
     if (version > DRW::AC1009) {
-        writer->writeString(5, toHexStr(++entCount));
-        textStyleMap[name] = entCount;
+        auto found = linetypeStyleHandles.find(ent->handle);
+        const duint32 styleHandle = found != linetypeStyleHandles.end() && found->second
+            ? found->second : ++entCount;
+        writer->writeString(5, toHexStr(styleHandle));
+        textStyleMap[name] = styleHandle;
     }
 
     if (version > DRW::AC1012) {
