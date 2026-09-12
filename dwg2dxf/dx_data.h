@@ -52,6 +52,7 @@ public:
         delete mBlock;
     }
 
+    bool fromDwg = false;
     bool hasProxyGraphics = false;
     DRW_Header headerC;                 //stores a copy of the header vars
     std::list<DRW_LType>lineTypes;      //stores a copy of all line types

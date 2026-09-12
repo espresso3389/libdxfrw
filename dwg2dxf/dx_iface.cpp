@@ -24,6 +24,7 @@ bool dx_iface::fileImport(const std::string& fileI, dx_data *fData, bool debug){
     std::transform(fileExt.begin(), fileExt.end(),fileExt.begin(), ::toupper);
     cData = fData;
     currentBlock = cData->mBlock;
+    cData->fromDwg = fileExt == "DWG";
 
     if (fileExt == "DXF"){
         //loads dxf
@@ -57,11 +58,12 @@ bool dx_iface::fileImport(const std::string& fileI, dx_data *fData, bool debug){
 bool dx_iface::fileExport(const std::string& file, DRW::Version v, bool binary, dx_data *fData, bool debug){
     cData = fData;
     // The DXF writer allocates new handles. Materialize the saved DWG draw
-    // order first, so neither stale references nor unordered-map iteration can
-    // move fills above their linework. Each block keeps its own entity list.
+    // order first, including natural ascending handles when no SORTENTSTABLE
+    // exists: the DWG reader may visit entities in reverse handle order.
+    // Preserve input file order for DXF and keep every block independent.
     auto reorder = [this](dx_ifaceBlock* block) {
         const auto& order = cData->drawOrder;
-        if (!std::any_of(block->ent.begin(), block->ent.end(),
+        if (!cData->fromDwg && !std::any_of(block->ent.begin(), block->ent.end(),
                 [&order](const DRW_Entity* e) { return order.count(e->handle) != 0; })) return;
         auto key = [&order](const DRW_Entity* e) -> duint64 {
             auto found = order.find(e->handle);
