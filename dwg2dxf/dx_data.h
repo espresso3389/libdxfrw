@@ -55,6 +55,8 @@ public:
     bool fromDwg = false;
     bool hasProxyGraphics = false;
     int wipeoutFrame = -1;
+    DRW::Version sourceVersion = DRW::AC1009;
+    std::map<duint32, DRW_CadSetting> cadSettings;
     DRW_Header headerC;                 //stores a copy of the header vars
     std::list<DRW_LType>lineTypes;      //stores a copy of all line types
     std::list<DRW_Layer>layers;         //stores a copy of all layers

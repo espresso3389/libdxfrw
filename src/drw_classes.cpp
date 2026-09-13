@@ -86,10 +86,18 @@ void DRW_Class::toDwgType(){
         dwgType = 102;
     else if (recName == "ARC_DIMENSION")
         dwgType = 106;
+    else if (recName == "DICTIONARYVAR")
+        dwgType = 111;
+    else if (recName == "SCALE")
+        dwgType = 112;
     else if (recName == "WIPEOUTVARIABLES")
         dwgType = 108;
     else if (recName == "WIPEOUT")
         dwgType = 107;
+    else if (recName == "HELIX")
+        dwgType = 109;
+    else if (recName == "PLANESURFACE")
+        dwgType = 110;
     else if (recName == "ACAD_TABLE")
         dwgType = 103;
     else if (recName == "SORTENTSTABLE")

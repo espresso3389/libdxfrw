@@ -200,6 +200,35 @@ bool DRW_WipeoutVariables::parseDwg(DRW::Version version, dwgBuffer *buf, duint3
     return buf->isGood() && frame >= 0 && frame <= 2;
 }
 
+bool DRW_CadSetting::parseDwg(DRW::Version version, dwgBuffer *buf, duint32 bs) {
+    if (version < DRW::AC1021) return false;
+    dwgBuffer strings = *buf;
+    if (!DRW_TableEntry::parseDwg(version, buf, &strings, bs)) return false;
+    auto text = [&strings, version]() {
+        auto value = strings.getVariableText(version, false);
+        while (!value.empty() && value.back() == '\0') value.pop_back();
+        return value;
+    };
+    if (kind == 42) {
+        const auto count = buf->getBitLong();
+        if (count < 0 || count > 10000 || static_cast<duint32>(count) > buf->size()) return false;
+        buf->getBitShort(); buf->getRawChar8();
+        for (int i = 0; i < count; ++i) items.push_back({text(), 0});
+    } else if (kind == 111) {
+        buf->getRawChar8(); value = text();
+    } else if (kind == 112) {
+        buf->getBitShort(); name = text();
+        paperUnits = buf->getBitDouble(); drawingUnits = buf->getBitDouble(); buf->getBit();
+    } else return false;
+    if (!buf->isGood() || !strings.isGood() || numReactors < 0 || numReactors > 100000) return false;
+    buf->setPosition(objSize / 8); buf->setBitPos(objSize % 8);
+    parentHandle = buf->getOffsetHandle(handle).ref;
+    for (int i = 0; i < numReactors; ++i) buf->getHandle();
+    if (!xDictFlag) buf->getHandle();
+    for (auto& item : items) item.second = buf->getOffsetHandle(handle).ref;
+    return buf->isGood();
+}
+
 bool DRW_MLineStyle::parseDwg(DRW::Version version, dwgBuffer *buf, duint32 bs) {
     dwgBuffer strings = *buf;
     dwgBuffer* text = version >= DRW::AC1021 ? &strings : buf;

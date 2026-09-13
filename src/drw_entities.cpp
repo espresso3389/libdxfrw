@@ -658,11 +658,40 @@ bool DRW_ProxyEntity::parseDwg(DRW::Version version, dwgBuffer *buf, duint32 bs)
 }
 
 bool DRW_Region::parseDwg(DRW::Version version, dwgBuffer *buf, duint32 bs) {
-    // Only the common attributes and handles are needed here. On R2007+
-    // the handle stream has an explicit offset independent of modeler data.
+    // On R2007+ the handle stream has an explicit offset independent of
+    // modeler data and the following wireframe/surface editing parameters.
     if (version <= DRW::AC1018) return false;
-    return DRW_Entity::parseDwg(version, buf, nullptr, bs)
-        && DRW_Entity::parseDwgEntHandle(version, buf);
+    if (!DRW_Entity::parseDwg(version, buf, nullptr, bs)) return false;
+    if (!buf->getBit()) { // acis_empty
+        buf->getBit();
+        modelerVersion = buf->getBitShort();
+        auto remaining = [&]() -> duint64 {
+            const duint64 pos = buf->getPosition() * 8 + buf->getBitPos();
+            return pos <= objSize ? (objSize - pos) / 8 : 0;
+        };
+        const duint64 limit = 64 * 1024 * 1024;
+        if (modelerVersion == 1) {
+            for (;;) {
+                const dint32 length = buf->getBitLong();
+                if (!buf->isGood() || length < 0 || static_cast<duint64>(length) > remaining()
+                    || modelerData.size() + static_cast<duint64>(length) > limit) return false;
+                if (!length) break;
+                const auto offset = modelerData.size();
+                modelerData.resize(offset + length);
+                if (!buf->getBytes(modelerData.data() + offset, length)) return false;
+            }
+        } else if (modelerVersion == 2) {
+            const auto length = remaining();
+            if (length > limit) return false;
+            modelerData.resize(length);
+            if (length && !buf->getBytes(modelerData.data(), length)) return false;
+            // Indexed AcDs entities have no inline SAB. Never search outside
+            // this entity or substitute geometry from a different record.
+            const std::string signature(modelerData.begin(), modelerData.begin() + std::min<size_t>(14, length));
+            if (signature != "ACIS BinaryFil" && signature != "ASM BinaryFile") modelerData.clear();
+        }
+    }
+    return buf->isGood() && DRW_Entity::parseDwgEntHandle(version, buf);
 }
 
 bool DRW_Circle::parseDwg(DRW::Version version, dwgBuffer *buf, duint32 bs){
@@ -1534,6 +1563,25 @@ bool DRW_Text::parseDwg(DRW::Version version, dwgBuffer *buf, duint32 bs){
     return buf->isGood();
 }
 
+bool DRW_Tolerance::parseDwg(DRW::Version version, dwgBuffer *buf, duint32 bs) {
+    dwgBuffer strings = *buf;
+    dwgBuffer *textBuf = version > DRW::AC1018 ? &strings : buf;
+    if (!DRW_Entity::parseDwg(version, buf, textBuf, bs)) return false;
+    if (version <= DRW::AC1014) {
+        buf->getBitShort();
+        buf->getBitDouble();
+        buf->getBitDouble();
+    }
+    basePoint = buf->get3BitDouble();
+    secPoint = buf->get3BitDouble();
+    extPoint = buf->get3BitDouble();
+    text = textBuf->getVariableText(version, false);
+    if (!buf->isGood() || !textBuf->isGood()) return false;
+    if (!DRW_Entity::parseDwgEntHandle(version, buf)) return false;
+    styleH = buf->getOffsetHandle(handle);
+    return buf->isGood();
+}
+
 bool DRW_MText::parseCode(int code, const std::unique_ptr<dxfReader>& reader){
     switch (code) {
     case 1:
@@ -2253,6 +2301,25 @@ bool DRW_Spline::parseCode(int code, const std::unique_ptr<dxfReader>& reader){
     return true;
 }
 
+bool DRW_Helix::parseSplineExtension(dwgBuffer *buf){
+    majorVersion = buf->getBitLong();
+    maintenanceVersion = buf->getBitLong();
+    axisBase = buf->get3BitDouble();
+    startPoint = buf->get3BitDouble();
+    axisVector = buf->get3BitDouble();
+    radius = buf->getBitDouble();
+    turns = buf->getBitDouble();
+    turnHeight = buf->getBitDouble();
+    handedness = buf->getBit();
+    constraint = buf->getRawChar8();
+    // A helix's saved control points may have depth even though the generic
+    // spline reader assumes planar geometry when reconstructing DXF flags.
+    flags &= ~8;
+    return buf->isGood() && constraint <= 2 && majorVersion >= 0 && maintenanceVersion >= 0
+        && std::isfinite(radius) && std::isfinite(turns) && std::isfinite(turnHeight)
+        && radius >= 0 && turns >= 0;
+}
+
 bool DRW_Spline::parseDwg(DRW::Version version, dwgBuffer *buf, duint32 bs){
     bool ret = DRW_Entity::parseDwg(version, buf, NULL, bs);
     if (!ret)
@@ -2341,6 +2408,7 @@ bool DRW_Spline::parseDwg(DRW::Version version, dwgBuffer *buf, duint32 bs){
     }
 
     /* Common Entity Handle Data */
+    if (!parseSplineExtension(buf)) return false;
     ret = DRW_Entity::parseDwgEntHandle(version, buf);
     if (!ret)
         return ret;

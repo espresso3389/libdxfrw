@@ -1268,6 +1268,13 @@ bool dwgReader::readDwgEntity(dwgBuffer *dbuf, objHandle& obj, DRW_Interface& in
                 intfa.addDimDiametric(&e);
             }
             break; }
+        case 46: {
+            DRW_Tolerance e;
+            if (entryParse(e, buff, bs, ret)) {
+                e.style = findTableName(DRW::DIMSTYLE, e.styleH.ref);
+                intfa.addText(e);
+            }
+            break; }
         case 45: {
             DRW_Leader e;
             if (entryParse( e, buff, bs, ret)) {
@@ -1307,6 +1314,18 @@ bool dwgReader::readDwgEntity(dwgBuffer *dbuf, objHandle& obj, DRW_Interface& in
             DRW_Spline e;
             if (entryParse( e, buff, bs, ret)) {
                 intfa.addSpline(&e);
+            }
+            break; }
+        case 109: {
+            DRW_Helix e;
+            if (entryParse(e, buff, bs, ret)) {
+                intfa.addSpline(&e);
+            }
+            break; }
+        case 110: {
+            DRW_PlaneSurface e;
+            if (entryParse(e, buff, bs, ret)) {
+                intfa.addRegion(e);
             }
             break; }
         case 40: {
@@ -1420,6 +1439,14 @@ bool dwgReader::readDwgObject(dwgBuffer *dbuf, objHandle& obj, DRW_Interface& in
                 }
             }
             break; }
+        case 42: case 111: case 112: {
+            if (version >= DRW::AC1021) {
+                DRW_CadSetting setting;
+                setting.kind = oType;
+                if (setting.parseDwg(version, &buff, bs)) intfa.addCadSetting(setting);
+            }
+            break;
+        }
         case 108: {
             DRW_WipeoutVariables settings;
             ret = settings.parseDwg(version, &buff, bs);

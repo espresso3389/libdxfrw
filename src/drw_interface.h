@@ -42,6 +42,7 @@ public:
     virtual void addMLineStyle(const DRW_MLineStyle&) {}
     virtual void addWipeout(const DRW_Image&) {}
     virtual void addWipeoutFrame(int) {}
+    virtual void addCadSetting(const DRW_CadSetting&) {}
     virtual void addLayout(const DRW_Layout&) {}
     virtual void addSortentsTable(const DRW_SortentsTable&) {}
     virtual void addProxyEntity(const DRW_ProxyEntity&) {}

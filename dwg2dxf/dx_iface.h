@@ -62,6 +62,7 @@ public:
         cData->mlineStyles.push_back(data);
     }
     virtual void addWipeoutFrame(int value) { cData->wipeoutFrame = value; }
+    virtual void addCadSetting(const DRW_CadSetting& value) { cData->cadSettings.emplace(value.handle, value); }
     virtual void addWipeout(const DRW_Image& data) {
         currentBlock->ent.push_back(new DRW_Image(data));
     }
@@ -105,7 +106,10 @@ public:
         currentBlock->ent.push_back(new DRW_3DSolid(data));
     }
     virtual void addRegion(const DRW_Region& data){
-        currentBlock->ent.push_back(new DRW_Region(data));
+        if (data.eType == DRW::PLANESURFACE)
+            currentBlock->ent.push_back(new DRW_PlaneSurface(static_cast<const DRW_PlaneSurface&>(data)));
+        else
+            currentBlock->ent.push_back(new DRW_Region(data));
     }
     virtual void addCircle(const DRW_Circle& data){
         currentBlock->ent.push_back(new DRW_Circle(data));
@@ -120,7 +124,10 @@ public:
         currentBlock->ent.push_back(new DRW_Polyline(data));
     }
     virtual void addSpline(const DRW_Spline* data){
-        currentBlock->ent.push_back(new DRW_Spline(*data));
+        if (data->eType == DRW::HELIX)
+            currentBlock->ent.push_back(new DRW_Helix(*static_cast<const DRW_Helix*>(data)));
+        else
+            currentBlock->ent.push_back(new DRW_Spline(*data));
     }
     // ¿para que se usa?
     virtual void addKnot(const DRW_Entity& data){(void)data;}
@@ -141,7 +148,10 @@ public:
         currentBlock->ent.push_back(new DRW_MText(data));
     }
     virtual void addText(const DRW_Text& data){
-        currentBlock->ent.push_back(new DRW_Text(data));
+        if (data.eType == DRW::TOLERANCE)
+            currentBlock->ent.push_back(new DRW_Tolerance(static_cast<const DRW_Tolerance&>(data)));
+        else
+            currentBlock->ent.push_back(new DRW_Text(data));
     }
     virtual void addDimAlign(const DRW_DimAligned *data){
         currentBlock->ent.push_back(new DRW_DimAligned(*data));

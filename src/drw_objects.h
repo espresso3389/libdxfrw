@@ -129,6 +129,17 @@ protected:
     bool parseDwg(DRW::Version version, dwgBuffer *buf, duint32 bs=0) override;
 };
 
+class DRW_CadSetting : public DRW_TableEntry {
+    SETOBJFRIENDS
+public:
+    int kind = 0;
+    UTF8STRING value;
+    double paperUnits = 1, drawingUnits = 1;
+    std::vector<std::pair<UTF8STRING, duint32>> items;
+protected:
+    bool parseDwg(DRW::Version version, dwgBuffer *buf, duint32 bs=0) override;
+};
+
 class DRW_MLineStyle : public DRW_TableEntry {
     SETOBJFRIENDS
 public:

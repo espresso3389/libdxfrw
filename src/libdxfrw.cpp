@@ -1061,7 +1061,7 @@ bool dxfRW::writePolyline(DRW_Polyline *ent) {
 
 bool dxfRW::writeSpline(DRW_Spline *ent){
     if (version > DRW::AC1009) {
-        writer->writeString(0, "SPLINE");
+        writer->writeString(0, ent->eType == DRW::HELIX ? "HELIX" : "SPLINE");
         writeEntity(ent);
         writer->writeString(100, "AcDbSpline");
         writer->writeDouble(210, ent->normalVec.x);
@@ -1102,6 +1102,26 @@ bool dxfRW::writeSpline(DRW_Spline *ent){
             writer->writeDouble(11, point->x);
             writer->writeDouble(21, point->y);
             writer->writeDouble(31, point->z);
+        }
+        if (ent->eType == DRW::HELIX) {
+            auto helix = static_cast<DRW_Helix*>(ent);
+            writer->writeString(100, "AcDbHelix");
+            writer->writeInt32(90, helix->majorVersion);
+            writer->writeInt32(91, helix->maintenanceVersion);
+            writer->writeDouble(10, helix->axisBase.x);
+            writer->writeDouble(20, helix->axisBase.y);
+            writer->writeDouble(30, helix->axisBase.z);
+            writer->writeDouble(11, helix->startPoint.x);
+            writer->writeDouble(21, helix->startPoint.y);
+            writer->writeDouble(31, helix->startPoint.z);
+            writer->writeDouble(12, helix->axisVector.x);
+            writer->writeDouble(22, helix->axisVector.y);
+            writer->writeDouble(32, helix->axisVector.z);
+            writer->writeDouble(40, helix->radius);
+            writer->writeDouble(41, helix->turns);
+            writer->writeDouble(42, helix->turnHeight);
+            writer->writeBool(290, helix->handedness);
+            writer->writeInt16(280, helix->constraint);
         }
     } else {
         //RLZ: TODO convert spline in polyline (not exist in acad 12)
@@ -1249,12 +1269,18 @@ bool dxfRW::writeLeader(DRW_Leader *ent){
 bool dxfRW::writeModelerGeometry(DRW_Region *ent) {
     if (version <= DRW::AC1009) return false;
     const duint32 sourceHandle = ent->handle;
-    writer->writeString(0, ent->eType == DRW::E3DSOLID ? "3DSOLID" : "REGION");
+    writer->writeString(0, ent->eType == DRW::E3DSOLID ? "3DSOLID"
+        : ent->eType == DRW::PLANESURFACE ? "PLANESURFACE" : "REGION");
     writeEntity(ent);
     writer->writeString(100, "AcDbModelerGeometry");
     writer->writeInt16(70, 1);
     if (ent->eType == DRW::E3DSOLID) {
         writer->writeString(100, "AcDb3dSolid");
+    } else if (ent->eType == DRW::PLANESURFACE) {
+        writer->writeString(100, "AcDbSurface");
+        writer->writeInt16(71, 0);
+        writer->writeInt16(72, 0);
+        writer->writeString(100, "AcDbPlaneSurface");
     }
     writer->writeString(1001, "KORE_CAD_SOURCE");
     writer->writeString(1000, toHexStr(sourceHandle));
@@ -1417,6 +1443,28 @@ bool dxfRW::writeInsert(DRW_Insert *ent){
 }
 
 bool dxfRW::writeText(DRW_Text *ent){
+    if (ent->eType == DRW::TOLERANCE) {
+        writer->writeString(0, "TOLERANCE");
+        writeEntity(ent);
+        writer->writeString(100, "AcDbFcf");
+        writer->writeUtf8String(3, ent->style);
+        writer->writeDouble(10, ent->basePoint.x);
+        writer->writeDouble(20, ent->basePoint.y);
+        writer->writeDouble(30, ent->basePoint.z);
+        writer->writeDouble(11, ent->secPoint.x);
+        writer->writeDouble(21, ent->secPoint.y);
+        writer->writeDouble(31, ent->secPoint.z);
+        writer->writeDouble(210, ent->extPoint.x);
+        writer->writeDouble(220, ent->extPoint.y);
+        writer->writeDouble(230, ent->extPoint.z);
+        UTF8STRING content;
+        for (char c : ent->text) {
+            if (c == '\n') content += "^J";
+            else if (c != '\r') content += c;
+        }
+        writer->writeUtf8String(1, content);
+        return true;
+    }
     bool attribute = ent->attributeKind != DRW_Text::PlainText;
     bool definition = ent->attributeKind == DRW_Text::AttributeDefinition;
     writer->writeString(0, attribute ? (definition ? "ATTDEF" : "ATTRIB") : "TEXT");
@@ -1995,6 +2043,7 @@ bool dxfRW::writeObjects() {
     const int layoutDictionary = namedLayouts.empty() ? 0 : ++entCount;
     const int mlineDictionary = mlineStyleHandles.empty() ? 0 : ++entCount;
     const int wipeoutVariables = wipeoutFrame < 0 ? 0 : ++entCount;
+    const int modelScaleRecord = modelLinetypeScale == 1 ? 0 : ++entCount;
     writer->writeString(0, "DICTIONARY");
     std::string imgDictH;
     writer->writeString(5, "C");
@@ -2005,6 +2054,10 @@ bool dxfRW::writeObjects() {
     writer->writeInt16(281, 1);
     writer->writeString(3, "ACAD_GROUP");
     writer->writeString(350, "D");
+    if (modelScaleRecord) {
+        writer->writeString(3, "KORE_CAD_MODEL_LTSCALE");
+        writer->writeString(350, toHexStr(modelScaleRecord));
+    }
     if (layoutDictionary) {
         writer->writeString(3, "ACAD_LAYOUT");
         writer->writeString(350, toHexStr(layoutDictionary));
@@ -2027,6 +2080,11 @@ bool dxfRW::writeObjects() {
     writer->writeString(330, "C");
     writer->writeString(100, "AcDbDictionary");
     writer->writeInt16(281, 1);
+    if (modelScaleRecord) {
+        writer->writeString(0, "XRECORD"); writer->writeString(5, toHexStr(modelScaleRecord));
+        writer->writeString(330, "C"); writer->writeString(100, "AcDbXrecord"); writer->writeInt16(280, 1);
+        writer->writeInt16(70, 1); writer->writeDouble(40, modelLinetypeScale);
+    }
     if (wipeoutVariables) {
         writer->writeString(0, "WIPEOUTVARIABLES");
         writer->writeString(5, toHexStr(wipeoutVariables));

@@ -77,6 +77,7 @@ public:
     bool writeDimension(DRW_Dimension *ent);
     void setEllipseParts(int parts){elParts = parts;} /*!< set parts number when convert ellipse to polyline */
     bool writePlotSettings(DRW_PlotSettings *ent);
+    void setModelLinetypeScale(double value) { modelLinetypeScale = value; }
     void setWipeoutFrame(int value) { wipeoutFrame = value; }
     bool writeMLine(DRW_MLine *ent);
     bool writeWipeout(DRW_Image *ent);
@@ -92,6 +93,7 @@ public:
 private:
     std::vector<DRW_Layout> layouts;
     int wipeoutFrame = -1;
+    double modelLinetypeScale = 1;
     std::vector<DRW_MLineStyle> mlineStyles;
     std::map<duint32, int> mlineStyleHandles;
     /// used by read() to parse the content of the file

@@ -45,6 +45,7 @@ bool dx_iface::fileImport(const std::string& fileI, dx_data *fData, bool debug){
             dwg->setDebug(DRW::DebugLevel::Debug);
         }
         bool success = dwg->read(this, false);
+        cData->sourceVersion = dwg->getVersion();
         if (!success) {
             std::cout << "DWG file error: format " << dwg->getVersion() << " error " << dwg->getError() << std::endl;
         }
@@ -75,15 +76,76 @@ bool dx_iface::fileExport(const std::string& file, DRW::Version v, bool binary, 
     };
     reorder(cData->mBlock);
     for (auto block : cData->blocks) reorder(block);
+    // Capture original handles before the DXF writer assigns new ones.
+    std::vector<std::pair<duint32, const DRW_Region*>> modelers;
+    duint64 modelerBytes = 12;
+    auto collectModelers = [&](dx_ifaceBlock* block) {
+        for (auto entity : block->ent) {
+            if (entity->eType != DRW::REGION && entity->eType != DRW::E3DSOLID
+                && entity->eType != DRW::PLANESURFACE) continue;
+            auto modeler = static_cast<const DRW_Region*>(entity);
+            if (modeler->modelerData.empty()) continue;
+            modelers.emplace_back(entity->handle, modeler);
+            modelerBytes += 12 + modeler->modelerData.size();
+        }
+    };
+    collectModelers(cData->mBlock);
+    for (auto block : cData->blocks) collectModelers(block);
+    if (modelerBytes > 64 * 1024 * 1024 || modelers.size() > 100000) return false;
     dxfW = new dxfRW(file.c_str());
     dxfW->setLayouts(cData->layouts);
     dxfW->setMLineStyles(cData->mlineStyles);
     dxfW->setWipeoutFrame(cData->wipeoutFrame);
+    // Resolve only the named root dictionary, its variables and its scale
+    // list. Unreferenced objects must never supply drawing-wide settings.
+    auto& settings = cData->cadSettings;
+    auto child = [&settings](const DRW_CadSetting& parent, const std::string& key) -> const DRW_CadSetting* {
+        for (const auto& item : parent.items) if (item.first == key) {
+            auto found = settings.find(item.second);
+            if (found != settings.end()) return &found->second;
+        }
+        return nullptr;
+    };
+    for (const auto& pair : settings) if (pair.second.kind == 42 && pair.second.parentHandle == 0) {
+        const auto* variables = child(pair.second, "AcDbVariableDictionary");
+        const auto* scales = child(pair.second, "ACAD_SCALELIST");
+        if (!variables || !scales || variables->kind != 42 || scales->kind != 42) continue;
+        const auto* active = child(*variables, "CANNOSCALE");
+        const auto* enabled = child(*variables, "MSLTSCALE");
+        bool useScale = enabled ? enabled->value == "1" : cData->sourceVersion >= DRW::AC1024;
+        if (!active || active->kind != 111 || !useScale) continue;
+        for (const auto& item : scales->items) {
+            auto found = settings.find(item.second);
+            if (found == settings.end()) continue;
+            const auto& scale = found->second;
+            if (scale.kind == 112 && scale.name == active->value && scale.paperUnits > 0) {
+                const double ratio = scale.drawingUnits / scale.paperUnits;
+                if (std::isfinite(ratio) && ratio > 0 && ratio <= 1e9) dxfW->setModelLinetypeScale(ratio);
+            }
+        }
+    }
     if (debug) {
         dxfW->setDebug(DRW::DebugLevel::Debug);
     }
     bool success = dxfW->write(this, v, binary);
     delete dxfW;
+    if (success && !modelers.empty()) {
+        std::ofstream sidecar(file + ".modeler", std::ios::binary | std::ios::trunc);
+        auto uint32 = [&](duint32 value) {
+            for (int shift = 0; shift < 32; shift += 8) sidecar.put(static_cast<char>((value >> shift) & 255));
+        };
+        sidecar.write("KOREACI1", 8);
+        uint32(static_cast<duint32>(modelers.size()));
+        for (const auto& entry : modelers) {
+            const auto& bytes = entry.second->modelerData;
+            uint32(entry.first);
+            uint32(entry.second->modelerVersion);
+            uint32(static_cast<duint32>(bytes.size()));
+            sidecar.write(reinterpret_cast<const char*>(bytes.data()), bytes.size());
+        }
+        sidecar.flush();
+        success = sidecar.good();
+    }
     if (success && cData->headerC.acdsData && !cData->headerC.acdsData->empty()) {
         std::ofstream sidecar(file + ".acds", std::ios::binary | std::ios::trunc);
         const auto& bytes = *cData->headerC.acdsData;
@@ -125,6 +187,7 @@ void dx_iface::writeEntity(DRW_Entity* e){
         break;
     case DRW::REGION:
     case DRW::E3DSOLID:
+    case DRW::PLANESURFACE:
         dxfW->writeModelerGeometry(static_cast<DRW_Region*>(e));
         break;
     case DRW::CIRCLE:
@@ -146,6 +209,7 @@ void dx_iface::writeEntity(DRW_Entity* e){
         dxfW->writePolyline(static_cast<DRW_Polyline*>(e));
         break;
     case DRW::SPLINE:
+    case DRW::HELIX:
         dxfW->writeSpline(static_cast<DRW_Spline*>(e));
         break;
 //    case RS2::EntitySplinePoints:
@@ -159,6 +223,7 @@ void dx_iface::writeEntity(DRW_Entity* e){
     case DRW::MTEXT:
         dxfW->writeMText(static_cast<DRW_MText*>(e));
         break;
+    case DRW::TOLERANCE:
     case DRW::TEXT:
         dxfW->writeText(static_cast<DRW_Text*>(e));
         break;

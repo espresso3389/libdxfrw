@@ -48,7 +48,8 @@ namespace DRW {
         DIMORDINATE,
         ELLIPSE,
         HATCH,
-//        HELIX,
+        HELIX,
+        PLANESURFACE,
         IMAGE,
         INSERT,
         LEADER,
@@ -76,7 +77,7 @@ namespace DRW {
 //        SURFACE, //encrypted proprietary data can be four types
 //        TABLE,
         TEXT,
-//        TOLERANCE,
+        TOLERANCE,
         DXF_TRACE,
         UNDERLAY,
         VERTEX,
@@ -288,12 +289,13 @@ public:
     }
 };
 
-//! A REGION placeholder keeps identity and display properties in DXF.
-//! Its binary modeler geometry is loaded from the separate AcDs datastore.
+//! Keep modeler identity and inline data; newer DWGs use the AcDs datastore.
 class DRW_Region : public DRW_Point {
     SETENTFRIENDS
 public:
     DRW_Region() { eType = DRW::REGION; }
+    int modelerVersion = 0;
+    std::vector<duint8> modelerData;
 protected:
     bool parseDwg(DRW::Version version, dwgBuffer *buf, duint32 bs=0) override;
 };
@@ -303,6 +305,12 @@ class DRW_3DSolid : public DRW_Region {
     SETENTFRIENDS
 public:
     DRW_3DSolid() { eType = DRW::E3DSOLID; }
+};
+
+class DRW_PlaneSurface : public DRW_Region {
+    SETENTFRIENDS
+public:
+    DRW_PlaneSurface() { eType = DRW::PLANESURFACE; }
 };
 
 //! Class to handle circle entity
@@ -706,6 +714,14 @@ private:
 *  Class to handle insert entries
 *  @author Rallaz
 */
+class DRW_Tolerance : public DRW_Text {
+    SETENTFRIENDS
+public:
+    DRW_Tolerance() { eType = DRW::TOLERANCE; }
+protected:
+    bool parseDwg(DRW::Version version, dwgBuffer *buf, duint32 bs=0) override;
+};
+
 class DRW_MText : public DRW_Text {
     SETENTFRIENDS
 public:
@@ -849,6 +865,7 @@ public:
 protected:
     bool parseCode(int code, const std::unique_ptr<dxfReader>& reader) override;
     virtual bool parseDwg(DRW::Version version, dwgBuffer *buf, duint32 bs=0) override;
+    virtual bool parseSplineExtension(dwgBuffer *) { return true; }
 
 public:
 //    double ex;                /*!< normal vector x coordinate, code 210 */
@@ -880,6 +897,19 @@ public:
 private:
     std::shared_ptr<DRW_Coord> controlpoint;   /*!< current control point to add data */
     std::shared_ptr<DRW_Coord> fitpoint;       /*!< current fit point to add data */
+};
+
+//! HELIX carries its saved spline as well as its editing parameters.
+class DRW_Helix : public DRW_Spline {
+public:
+    DRW_Helix() { eType = DRW::HELIX; normalVec = DRW_Coord(0, 0, 1); }
+    dint32 majorVersion = 0, maintenanceVersion = 0;
+    DRW_Coord axisBase, startPoint, axisVector;
+    double radius = 0, turns = 0, turnHeight = 0;
+    bool handedness = false;
+    duint8 constraint = 0;
+protected:
+    bool parseSplineExtension(dwgBuffer *buf) override;
 };
 
 //! Class to handle hatch loop
