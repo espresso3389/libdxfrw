@@ -124,7 +124,8 @@ void dx_iface::writeEntity(DRW_Entity* e){
         dxfW->writeLine(static_cast<DRW_Line*>(e));
         break;
     case DRW::REGION:
-        dxfW->writeRegion(static_cast<DRW_Region*>(e));
+    case DRW::E3DSOLID:
+        dxfW->writeModelerGeometry(static_cast<DRW_Region*>(e));
         break;
     case DRW::CIRCLE:
         dxfW->writeCircle(static_cast<DRW_Circle*>(e));

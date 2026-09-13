@@ -101,6 +101,9 @@ public:
     virtual void addArc(const DRW_Arc& data){
         currentBlock->ent.push_back(new DRW_Arc(data));
     }
+    virtual void add3DSolid(const DRW_3DSolid& data){
+        currentBlock->ent.push_back(new DRW_3DSolid(data));
+    }
     virtual void addRegion(const DRW_Region& data){
         currentBlock->ent.push_back(new DRW_Region(data));
     }

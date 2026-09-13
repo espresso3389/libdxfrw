@@ -1246,13 +1246,16 @@ bool dxfRW::writeLeader(DRW_Leader *ent){
     }
     return true;
 }
-bool dxfRW::writeRegion(DRW_Region *ent) {
+bool dxfRW::writeModelerGeometry(DRW_Region *ent) {
     if (version <= DRW::AC1009) return false;
     const duint32 sourceHandle = ent->handle;
-    writer->writeString(0, "REGION");
+    writer->writeString(0, ent->eType == DRW::E3DSOLID ? "3DSOLID" : "REGION");
     writeEntity(ent);
     writer->writeString(100, "AcDbModelerGeometry");
     writer->writeInt16(70, 1);
+    if (ent->eType == DRW::E3DSOLID) {
+        writer->writeString(100, "AcDb3dSolid");
+    }
     writer->writeString(1001, "KORE_CAD_SOURCE");
     writer->writeString(1000, toHexStr(sourceHandle));
     return true;

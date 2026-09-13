@@ -56,7 +56,7 @@ public:
     bool writeRay(DRW_Ray *ent);
     bool writeXline(DRW_Xline *ent);
     bool writeCircle(DRW_Circle *ent);
-    bool writeRegion(DRW_Region *ent);
+    bool writeModelerGeometry(DRW_Region *ent);
     bool writeArc(DRW_Arc *ent);
     bool writeEllipse(DRW_Ellipse *ent);
     bool writeTrace(DRW_Trace *ent);

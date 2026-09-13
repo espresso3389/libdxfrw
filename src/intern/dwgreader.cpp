@@ -1076,6 +1076,15 @@ bool dwgReader::readDwgEntity(dwgBuffer *dbuf, objHandle& obj, DRW_Interface& in
 
     obj.type = oType;
     switch (oType) {
+        case 38: {
+            if (version <= DRW::AC1018) {
+                objObjectMap[obj.handle] = obj;
+                break;
+            }
+            DRW_3DSolid e;
+            if (entryParse(e, buff, bs, ret)) intfa.add3DSolid(e);
+            break;
+        }
         case 37: {
             if (version <= DRW::AC1018) {
                 objObjectMap[obj.handle] = obj;

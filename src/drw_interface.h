@@ -37,6 +37,7 @@ public:
     virtual void addHeader(const DRW_Header* data) = 0;
 
     virtual void addRegion(const DRW_Region&) {}
+    virtual void add3DSolid(const DRW_3DSolid&) {}
     virtual void addMLine(const DRW_MLine&) {}
     virtual void addMLineStyle(const DRW_MLineStyle&) {}
     virtual void addWipeout(const DRW_Image&) {}

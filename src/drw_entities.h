@@ -30,7 +30,7 @@ namespace DRW {
    //! Entity's type.
     enum ETYPE {
         E3DFACE,
-//        E3DSOLID, //encrypted proprietary data
+        E3DSOLID, // modeler data is preserved via the AcDs sidecar
         ACAD_PROXY_ENTITY,
         ARC,
 //        ATTDEF,
@@ -296,6 +296,13 @@ public:
     DRW_Region() { eType = DRW::REGION; }
 protected:
     bool parseDwg(DRW::Version version, dwgBuffer *buf, duint32 bs=0) override;
+};
+
+//! A solid uses the same common DWG header and AcDs handle mapping as REGION.
+class DRW_3DSolid : public DRW_Region {
+    SETENTFRIENDS
+public:
+    DRW_3DSolid() { eType = DRW::E3DSOLID; }
 };
 
 //! Class to handle circle entity
