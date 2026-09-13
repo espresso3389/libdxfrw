@@ -121,6 +121,26 @@ private:
 };
 
 
+class DRW_WipeoutVariables : public DRW_TableEntry {
+    SETOBJFRIENDS
+public:
+    int frame = 0;
+protected:
+    bool parseDwg(DRW::Version version, dwgBuffer *buf, duint32 bs=0) override;
+};
+
+class DRW_MLineStyle : public DRW_TableEntry {
+    SETOBJFRIENDS
+public:
+    struct Line { double offset; int color; duint32 ltype; std::string ltypeName; };
+    int fillColor = 256;
+    double startAngle = 90, endAngle = 90;
+    std::string description;
+    std::vector<Line> lines;
+protected:
+    bool parseDwg(DRW::Version version, dwgBuffer *buf, duint32 bs=0) override;
+};
+
 //! Saved entity redraw order. Sort handles are values, not object references.
 class DRW_SortentsTable : public DRW_TableEntry {
     SETOBJFRIENDS

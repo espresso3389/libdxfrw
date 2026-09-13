@@ -194,6 +194,48 @@ DRW_DBG("\n***************************** parsing table entry *******************
     return buf->isGood();
 }
 
+bool DRW_WipeoutVariables::parseDwg(DRW::Version version, dwgBuffer *buf, duint32 bs) {
+    if (!DRW_TableEntry::parseDwg(version, buf, nullptr, bs)) return false;
+    frame = buf->getBitShort();
+    return buf->isGood() && frame >= 0 && frame <= 2;
+}
+
+bool DRW_MLineStyle::parseDwg(DRW::Version version, dwgBuffer *buf, duint32 bs) {
+    dwgBuffer strings = *buf;
+    dwgBuffer* text = version >= DRW::AC1021 ? &strings : buf;
+    if (!DRW_TableEntry::parseDwg(version, buf, text, bs)) return false;
+    name = text->getVariableText(version, false);
+    description = text->getVariableText(version, false);
+    while (!name.empty() && name.back() == '\0') name.pop_back();
+    while (!description.empty() && description.back() == '\0') description.pop_back();
+    const int bits = buf->getBitShort();
+    flags = ((bits & 1) << 1) | ((bits & 2) >> 1) | (bits & 16)
+        | ((bits & 32) << 1) | ((bits & 64) >> 1) | (bits & 256)
+        | ((bits & 512) << 1) | ((bits & 1024) >> 1);
+    fillColor = buf->getCmColor(version);
+    startAngle = buf->getBitDouble() * ARAD;
+    endAngle = buf->getBitDouble() * ARAD;
+    const int count = buf->getRawChar8();
+    for (int i = 0; i < count; ++i) {
+        Line line;
+        line.offset = buf->getBitDouble();
+        line.color = buf->getCmColor(version);
+        line.ltype = version >= DRW::AC1032 ? 0 : buf->getBitShort();
+        lines.push_back(line);
+    }
+    if (version >= DRW::AC1015) {
+        buf->setPosition(objSize / 8);
+        buf->setBitPos(objSize % 8);
+    }
+    buf->getHandle(); // Owner, reactors and extension dictionary precede style resources.
+    if (numReactors < 0 || numReactors > 100000) return false;
+    for (int i = 0; i < numReactors; ++i) buf->getHandle();
+    if (!xDictFlag) buf->getHandle();
+    if (version >= DRW::AC1032)
+        for (auto& line : lines) line.ltype = buf->getHandle().ref;
+    return buf->isGood() && text->isGood();
+}
+
 bool DRW_SortentsTable::parseDwg(DRW::Version version, dwgBuffer *buf, duint32 bs) {
     if (!DRW_TableEntry::parseDwg(version, buf, nullptr, bs)) return false;
     const dint32 count = buf->getBitLong();
@@ -1068,6 +1110,7 @@ bool DRW_Vport::parseDwg(DRW::Version version, dwgBuffer *buf, duint32 bs){
     flags |= buf->getBit() << 4; //is refx dependent, style code 70, bit 5 (16)
     height = buf->getBitDouble();
     ratio = buf->getBitDouble();
+    if (height > 0) ratio /= height;
     DRW_DBG("flags: "); DRW_DBG(flags); DRW_DBG(" height: "); DRW_DBG(height);
     DRW_DBG(" ratio: "); DRW_DBG(ratio);
     center = buf->get2RawDouble();
@@ -1080,7 +1123,7 @@ bool DRW_Vport::parseDwg(DRW::Version version, dwgBuffer *buf, duint32 bs){
     viewDir.y = buf->getBitDouble();
     viewDir.z = buf->getBitDouble();
     DRW_DBG("\nview dir: "); DRW_DBGPT(viewDir.x, viewDir.y, viewDir.z);
-    twistAngle = buf->getBitDouble();
+    twistAngle = buf->getBitDouble() * ARAD;
     lensHeight = buf->getBitDouble();
     frontClip = buf->getBitDouble();
     backClip = buf->getBitDouble();
@@ -1089,7 +1132,7 @@ bool DRW_Vport::parseDwg(DRW::Version version, dwgBuffer *buf, duint32 bs){
     viewMode = buf->getBit(); //view mode, code 71, bit 0 (1)
     viewMode |= buf->getBit() << 1; //view mode, code 71, bit 1 (2)
     viewMode |= buf->getBit() << 2; //view mode, code 71, bit 2 (4)
-    viewMode |= buf->getBit() << 4; //view mode, code 71, bit 4 (16)
+    viewMode |= (!buf->getBit()) << 4; //view mode, code 71, bit 4 (16)
     if (version > DRW::AC1014) { //2000+
         //duint8 renderMode = buf->getRawChar8();
         DRW_DBG("\n renderMode: "); DRW_DBG(buf->getRawChar8());
@@ -1120,7 +1163,7 @@ bool DRW_Vport::parseDwg(DRW::Version version, dwgBuffer *buf, duint32 bs){
     snapStyle = buf->getBit();
     DRW_DBG("\nsnap on/off: "); DRW_DBG(snap); DRW_DBG(" snap Style: "); DRW_DBG(snapStyle);
     snapIsopair = buf->getBitShort();
-    snapAngle = buf->getBitDouble();
+    snapAngle = buf->getBitDouble() * ARAD;
     DRW_DBG("\nsnap Isopair: "); DRW_DBG(snapIsopair); DRW_DBG(" snap Angle: "); DRW_DBG(snapAngle);
     snapBase = buf->get2RawDouble();
     DRW_DBG("\nsnap Base: "); DRW_DBGPT(snapBase.x, snapBase.y, snapBase.z);

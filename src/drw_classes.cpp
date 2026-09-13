@@ -84,6 +84,12 @@ void DRW_Class::toDwgType(){
         dwgType = 101;
     else if (recName == "IMAGEDEF")
         dwgType = 102;
+    else if (recName == "ARC_DIMENSION")
+        dwgType = 106;
+    else if (recName == "WIPEOUTVARIABLES")
+        dwgType = 108;
+    else if (recName == "WIPEOUT")
+        dwgType = 107;
     else if (recName == "ACAD_TABLE")
         dwgType = 103;
     else if (recName == "SORTENTSTABLE")

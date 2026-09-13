@@ -282,15 +282,70 @@ bool dxfRW::writeLineType(DRW_LType *ent){
     return true;
 }
 
+bool dxfRW::writeMLine(DRW_MLine *ent) {
+    auto style = std::find_if(mlineStyles.begin(), mlineStyles.end(),
+        [ent](const DRW_MLineStyle& s) { return s.handle == ent->styleHandle; });
+    if (!mlineStyleHandles.count(ent->styleHandle)) mlineStyleHandles[ent->styleHandle] = ++entCount;
+    writer->writeString(0, "MLINE");
+    writeEntity(ent);
+    writer->writeString(100, "AcDbMline");
+    writer->writeUtf8String(2, style == mlineStyles.end() ? "UNKNOWN" : style->name);
+    writer->writeString(340, toHexStr(mlineStyleHandles[ent->styleHandle]));
+    writer->writeDouble(40, ent->scale);
+    writer->writeInt16(70, ent->justification);
+    writer->writeInt16(71, ent->flags);
+    writer->writeInt16(72, ent->vertices.size());
+    writer->writeInt16(73, ent->lineCount);
+    auto point = [this](int code, const DRW_Coord& p) {
+        writer->writeDouble(code, p.x); writer->writeDouble(code + 10, p.y); writer->writeDouble(code + 20, p.z);
+    };
+    point(10, ent->basePoint); point(210, ent->extrusion);
+    for (const auto& vertex : ent->vertices) {
+        point(11, vertex.point); point(12, vertex.direction); point(13, vertex.miter);
+        for (int i = 0; i < ent->lineCount; ++i) {
+            writer->writeInt16(74, vertex.segments[i].size());
+            for (double value : vertex.segments[i]) writer->writeDouble(41, value);
+            writer->writeInt16(75, vertex.fills[i].size());
+            for (double value : vertex.fills[i]) writer->writeDouble(42, value);
+        }
+    }
+    return true;
+}
+
+bool dxfRW::writeWipeout(DRW_Image *ent) {
+    writer->writeString(0, "WIPEOUT");
+    writeEntity(ent);
+    writer->writeString(100, "AcDbWipeout");
+    writer->writeInt32(90, 0);
+    auto point = [this](int code, const DRW_Coord& p) {
+        writer->writeDouble(code, p.x); writer->writeDouble(code + 10, p.y); writer->writeDouble(code + 20, p.z);
+    };
+    point(10, ent->basePoint); point(11, ent->secPoint); point(12, ent->vVector);
+    writer->writeDouble(13, ent->sizeu); writer->writeDouble(23, ent->sizev);
+    writer->writeString(340, "0"); writer->writeString(360, "0");
+    writer->writeInt16(70, ent->displayProps); writer->writeInt16(280, ent->clip);
+    writer->writeInt16(281, ent->brightness); writer->writeInt16(282, ent->contrast); writer->writeInt16(283, ent->fade);
+    writer->writeInt16(71, ent->clipType); writer->writeInt32(91, ent->clipVertices.size());
+    for (const auto& p : ent->clipVertices) {
+        writer->writeDouble(14, p.x); writer->writeDouble(24, p.y);
+    }
+    writer->writeBool(290, ent->clipMode);
+    return true;
+}
+
 void dxfRW::writeProxyClass() {
-    // The first application class has ID 500 in the proxy entity record.
-    writer->writeString(0, "CLASS");
-    writer->writeString(1, "MULTILEADER");
-    writer->writeString(2, "AcDbMLeader");
-    writer->writeString(3, "ACDB_MLEADER_CLASS");
-    writer->writeInt32(90, 1025);
-    writer->writeInt16(280, 1); // Original class implementation is not available.
-    writer->writeInt16(281, 1); // Entity class.
+    // Application class IDs start at 500, in this order.
+    const char* names[] = {"MULTILEADER", "ARC_DIMENSION", "ACAD_TABLE"};
+    const char* cpp[] = {"AcDbMLeader", "AcDbArcDimension", "AcDbTable"};
+    for (int i = 0; i < 3; ++i) {
+        writer->writeString(0, "CLASS");
+        writer->writeString(1, names[i]);
+        writer->writeString(2, cpp[i]);
+        writer->writeString(3, "ObjectDBX Classes");
+        writer->writeInt32(90, 1025);
+        writer->writeInt16(280, 1);
+        writer->writeInt16(281, 1);
+    }
 }
 
 bool dxfRW::writeProxyEntity(DRW_ProxyEntity *ent) {
@@ -324,7 +379,7 @@ bool dxfRW::writeProxyEntity(DRW_ProxyEntity *ent) {
     writeEntity(ent);
     writer->writeString(100, "AcDbProxyEntity");
     writer->writeInt32(90, 498);
-    writer->writeInt32(91, 500);
+    writer->writeInt32(91, ent->sourceClass);
     writer->writeInt32(92, graphics.size());
     static const char hex[] = "0123456789ABCDEF";
     for (size_t start = 0; start < graphics.size(); start += 127) {
@@ -1935,6 +1990,8 @@ bool dxfRW::writeObjects() {
         if (blockMap.find(layout.blockName) != blockMap.end())
             namedLayouts.push_back({&layout, ++entCount});
     const int layoutDictionary = namedLayouts.empty() ? 0 : ++entCount;
+    const int mlineDictionary = mlineStyleHandles.empty() ? 0 : ++entCount;
+    const int wipeoutVariables = wipeoutFrame < 0 ? 0 : ++entCount;
     writer->writeString(0, "DICTIONARY");
     std::string imgDictH;
     writer->writeString(5, "C");
@@ -1949,6 +2006,14 @@ bool dxfRW::writeObjects() {
         writer->writeString(3, "ACAD_LAYOUT");
         writer->writeString(350, toHexStr(layoutDictionary));
     }
+    if (wipeoutVariables) {
+        writer->writeString(3, "ACAD_WIPEOUT_VARS");
+        writer->writeString(350, toHexStr(wipeoutVariables));
+    }
+    if (mlineDictionary) {
+        writer->writeString(3, "ACAD_MLINESTYLE");
+        writer->writeString(350, toHexStr(mlineDictionary));
+    }
     if (imageDef.size() != 0) {
         writer->writeString(3, "ACAD_IMAGE_DICT");
         imgDictH = toHexStr(++entCount);
@@ -1959,6 +2024,33 @@ bool dxfRW::writeObjects() {
     writer->writeString(330, "C");
     writer->writeString(100, "AcDbDictionary");
     writer->writeInt16(281, 1);
+    if (wipeoutVariables) {
+        writer->writeString(0, "WIPEOUTVARIABLES");
+        writer->writeString(5, toHexStr(wipeoutVariables));
+        writer->writeString(330, "C");
+        writer->writeString(100, "AcDbWipeoutVariables");
+        writer->writeInt16(70, wipeoutFrame);
+    }
+    if (mlineDictionary) {
+        writer->writeString(0, "DICTIONARY"); writer->writeString(5, toHexStr(mlineDictionary));
+        writer->writeString(330, "C"); writer->writeString(100, "AcDbDictionary"); writer->writeInt16(281, 1);
+        for (const auto& style : mlineStyles) if (mlineStyleHandles.count(style.handle)) {
+            writer->writeUtf8String(3, style.name);
+            writer->writeString(350, toHexStr(mlineStyleHandles[style.handle]));
+        }
+        for (const auto& style : mlineStyles) if (mlineStyleHandles.count(style.handle)) {
+            writer->writeString(0, "MLINESTYLE"); writer->writeString(5, toHexStr(mlineStyleHandles[style.handle]));
+            writer->writeString(330, toHexStr(mlineDictionary)); writer->writeString(100, "AcDbMlineStyle");
+            writer->writeUtf8String(2, style.name); writer->writeInt16(70, style.flags);
+            writer->writeUtf8String(3, style.description); writer->writeInt16(62, style.fillColor);
+            writer->writeDouble(51, style.startAngle); writer->writeDouble(52, style.endAngle);
+            writer->writeInt16(71, style.lines.size());
+            for (const auto& line : style.lines) {
+                writer->writeDouble(49, line.offset); writer->writeInt16(62, line.color);
+                writer->writeUtf8String(6, line.ltypeName);
+            }
+        }
+    }
 //write IMAGEDEF_REACTOR
     for (unsigned int i=0; i<imageDef.size(); i++) {
         DRW_ImageDef *id = imageDef.at(i);

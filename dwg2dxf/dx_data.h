@@ -54,6 +54,7 @@ public:
 
     bool fromDwg = false;
     bool hasProxyGraphics = false;
+    int wipeoutFrame = -1;
     DRW_Header headerC;                 //stores a copy of the header vars
     std::list<DRW_LType>lineTypes;      //stores a copy of all line types
     std::list<DRW_Layer>layers;         //stores a copy of all layers
@@ -62,6 +63,7 @@ public:
     std::list<DRW_Textstyle>textStyles; //stores a copy of all text styles
     std::list<DRW_AppId>appIds;         //stores a copy of all line types
     std::vector<DRW_Layout>layouts;
+    std::vector<DRW_MLineStyle>mlineStyles;
     std::map<duint32, duint32> drawOrder;
     std::list<dx_ifaceBlock*>blocks;    //stores a copy of all blocks and the entities in it
     std::list<dx_ifaceImg*>images;      //temporary list to find images for link with DRW_ImageDef. Do not delete it!!

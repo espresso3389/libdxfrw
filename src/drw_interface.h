@@ -37,6 +37,10 @@ public:
     virtual void addHeader(const DRW_Header* data) = 0;
 
     virtual void addRegion(const DRW_Region&) {}
+    virtual void addMLine(const DRW_MLine&) {}
+    virtual void addMLineStyle(const DRW_MLineStyle&) {}
+    virtual void addWipeout(const DRW_Image&) {}
+    virtual void addWipeoutFrame(int) {}
     virtual void addLayout(const DRW_Layout&) {}
     virtual void addSortentsTable(const DRW_SortentsTable&) {}
     virtual void addProxyEntity(const DRW_ProxyEntity&) {}

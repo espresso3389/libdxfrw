@@ -55,6 +55,16 @@ public:
     virtual void addAppId(const DRW_AppId& data){
         cData->appIds.push_back(data);
     }
+    virtual void addMLine(const DRW_MLine& data) {
+        currentBlock->ent.push_back(new DRW_MLine(data));
+    }
+    virtual void addMLineStyle(const DRW_MLineStyle& data) {
+        cData->mlineStyles.push_back(data);
+    }
+    virtual void addWipeoutFrame(int value) { cData->wipeoutFrame = value; }
+    virtual void addWipeout(const DRW_Image& data) {
+        currentBlock->ent.push_back(new DRW_Image(data));
+    }
     virtual void addLayout(const DRW_Layout& data){
         if (cData->layouts.size() < 64) cData->layouts.push_back(data);
     }

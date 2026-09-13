@@ -77,6 +77,10 @@ public:
     bool writeDimension(DRW_Dimension *ent);
     void setEllipseParts(int parts){elParts = parts;} /*!< set parts number when convert ellipse to polyline */
     bool writePlotSettings(DRW_PlotSettings *ent);
+    void setWipeoutFrame(int value) { wipeoutFrame = value; }
+    bool writeMLine(DRW_MLine *ent);
+    bool writeWipeout(DRW_Image *ent);
+    void setMLineStyles(const std::vector<DRW_MLineStyle>& values) { std::vector<DRW_MLineStyle> copy(values); mlineStyles.swap(copy); }
     void setLayouts(const std::vector<DRW_Layout>& values) {
         layouts.clear();
         for (const auto& layout : values) layouts.push_back(layout);
@@ -87,6 +91,9 @@ public:
 
 private:
     std::vector<DRW_Layout> layouts;
+    int wipeoutFrame = -1;
+    std::vector<DRW_MLineStyle> mlineStyles;
+    std::map<duint32, int> mlineStyleHandles;
     /// used by read() to parse the content of the file
     bool processDxf();
     bool processHeader();

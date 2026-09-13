@@ -616,6 +616,39 @@ bool DRW_Circle::parseCode(int code, const std::unique_ptr<dxfReader>& reader){
     return true;
 }
 
+bool DRW_MLine::parseDwg(DRW::Version version, dwgBuffer *buf, duint32 bs) {
+    if (!DRW_Entity::parseDwg(version, buf, nullptr, bs)) return false;
+    scale = buf->getBitDouble();
+    justification = buf->getRawChar8();
+    basePoint = buf->get3BitDouble();
+    extrusion = buf->get3BitDouble();
+    flags = buf->getBitShort();
+    lineCount = buf->getRawChar8();
+    const int count = buf->getBitShort();
+    if (count < 0 || count > 10000 || lineCount < 1 || count * lineCount > 100000) return false;
+    size_t parameters = 0;
+    for (int i = 0; i < count; ++i) {
+        Vertex vertex;
+        vertex.point = buf->get3BitDouble();
+        vertex.direction = buf->get3BitDouble();
+        vertex.miter = buf->get3BitDouble();
+        for (int j = 0; j < lineCount; ++j) {
+            for (auto* groups : {&vertex.segments, &vertex.fills}) {
+                const int size = buf->getBitShort();
+                if (size < 0 || size > 10000 || (parameters += size) > 100000) return false;
+                std::vector<double> values;
+                for (int k = 0; k < size; ++k) values.push_back(buf->getBitDouble());
+                groups->push_back(std::move(values));
+            }
+        }
+        if (!buf->isGood()) return false;
+        vertices.push_back(std::move(vertex));
+    }
+    if (!DRW_Entity::parseDwgEntHandle(version, buf)) return false;
+    styleHandle = buf->getHandle().ref;
+    return buf->isGood();
+}
+
 bool DRW_ProxyEntity::parseDwg(DRW::Version version, dwgBuffer *buf, duint32 bs) {
     // MULTILEADER starts at R2007, where the common handle stream is located
     // independently of the entity-specific data and annotation contexts.
@@ -2376,25 +2409,20 @@ bool DRW_Image::parseDwg(DRW::Version version, dwgBuffer *buf, duint32 bs){
     sizeu = buf->getRawDouble();
     sizev = buf->getRawDouble();
     DRW_DBG("\nsize U: "); DRW_DBG(sizeu); DRW_DBG("\nsize V: "); DRW_DBG(sizev);
-    duint16 displayProps = buf->getBitShort();
-    DRW_UNUSED(displayProps);//RLZ: temporary, complete API
+    displayProps = buf->getBitShort();
     clip = buf->getBit();
     brightness = buf->getRawChar8();
     contrast = buf->getRawChar8();
     fade = buf->getRawChar8();
     if (version > DRW::AC1021){ //2010+
-        bool clipMode = buf->getBit();
-        DRW_UNUSED(clipMode);//RLZ: temporary, complete API
+        clipMode = buf->getBit();
     }
-    duint16 clipType = buf->getBitShort();
-    if (clipType == 1){
-        buf->get2RawDouble();
-        buf->get2RawDouble();
-    } else { //clipType == 2
-        dint32 numVerts = buf->getBitLong();
-        for (int i= 0; i< numVerts;++i)
-            buf->get2RawDouble();
-    }
+    clipType = buf->getBitShort();
+    if (clipType != 1 && clipType != 2) return false;
+    const dint32 numVerts = clipType == 1 ? 2 : buf->getBitLong();
+    if (numVerts < 0 || numVerts > 100000 || numVerts > buf->numRemainingBytes() / 16) return false;
+    for (dint32 i = 0; i < numVerts; ++i)
+        clipVertices.push_back(buf->get2RawDouble());
 
     ret = DRW_Entity::parseDwgEntHandle(version, buf);
     if (!ret)

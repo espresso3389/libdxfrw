@@ -1125,12 +1125,25 @@ bool dwgReader::readDwgEntity(dwgBuffer *dbuf, objHandle& obj, DRW_Interface& in
                 intfa.addInsert(e);
             }
             break; }
+        case 47: {
+            DRW_MLine e;
+            if (entryParse(e, buff, bs, ret)) intfa.addMLine(e);
+            break;
+        }
+        case 107: {
+            DRW_Image e;
+            e.eType = DRW::WIPEOUT;
+            if (entryParse(e, buff, bs, ret)) intfa.addWipeout(e);
+            break;
+        }
+        case 106: // ARC_DIMENSION: saved graphics retain overrides and annotation placement.
         case 105: { // MULTILEADER saved vector graphics
             if (version < DRW::AC1021) {
                 objObjectMap[obj.handle] = obj;
                 break;
             }
             DRW_ProxyEntity e;
+            e.sourceClass = oType == 106 ? 501 : 500;
             if (entryParse(e, buff, bs, ret)) {
                 e.sourceLayers = proxyLayers;
                 e.sourceLinetypes = proxyLinetypes;
@@ -1138,8 +1151,18 @@ bool dwgReader::readDwgEntity(dwgBuffer *dbuf, objHandle& obj, DRW_Interface& in
             }
             break;
         }
-        case 103: { // ACAD_TABLE: cached geometry in R2004/R2007
-            if (version < DRW::AC1018 || version > DRW::AC1021) {
+        case 103: { // Older tables have INSERT prefixes; modern tables keep saved vectors.
+            if (version >= DRW::AC1024) {
+                DRW_ProxyEntity e;
+                e.sourceClass = 502;
+                if (entryParse(e, buff, bs, ret)) {
+                    e.sourceLayers = proxyLayers;
+                    e.sourceLinetypes = proxyLinetypes;
+                    intfa.addProxyEntity(e);
+                }
+                break;
+            }
+            if (version < DRW::AC1018) {
                 objObjectMap[obj.handle] = obj;
                 break;
             }
@@ -1388,6 +1411,27 @@ bool dwgReader::readDwgObject(dwgBuffer *dbuf, objHandle& obj, DRW_Interface& in
                 }
             }
             break; }
+        case 108: {
+            DRW_WipeoutVariables settings;
+            ret = settings.parseDwg(version, &buff, bs);
+            if (ret) intfa.addWipeoutFrame(settings.frame);
+            break;
+        }
+        case 73: {
+            DRW_MLineStyle style;
+            ret = style.parseDwg(version, &buff, bs);
+            if (ret) {
+                for (auto& line : style.lines) {
+                    if (version >= DRW::AC1032) line.ltypeName = findTableName(DRW::LTYPE, line.ltype);
+                    else if (line.ltype == 32767) line.ltypeName = "BYLAYER";
+                    else if (line.ltype == 32766) line.ltypeName = "BYBLOCK";
+                    else if (line.ltype < proxyLinetypes.size())
+                        line.ltypeName = findTableName(DRW::LTYPE, proxyLinetypes[line.ltype]);
+                }
+                intfa.addMLineStyle(style);
+            }
+            break;
+        }
         case 104: {
             DRW_SortentsTable table;
             ret = table.parseDwg(version, &buff, bs);

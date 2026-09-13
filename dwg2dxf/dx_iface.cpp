@@ -77,6 +77,8 @@ bool dx_iface::fileExport(const std::string& file, DRW::Version v, bool binary, 
     for (auto block : cData->blocks) reorder(block);
     dxfW = new dxfRW(file.c_str());
     dxfW->setLayouts(cData->layouts);
+    dxfW->setMLineStyles(cData->mlineStyles);
+    dxfW->setWipeoutFrame(cData->wipeoutFrame);
     if (debug) {
         dxfW->setDebug(DRW::DebugLevel::Debug);
     }
@@ -94,6 +96,18 @@ bool dx_iface::fileExport(const std::string& file, DRW::Version v, bool binary, 
 
 void dx_iface::writeEntity(DRW_Entity* e){
     switch (e->eType) {
+    case DRW::RAY:
+        dxfW->writeRay(static_cast<DRW_Ray*>(e));
+        break;
+    case DRW::XLINE:
+        dxfW->writeXline(static_cast<DRW_Xline*>(e));
+        break;
+    case DRW::MLINE:
+        dxfW->writeMLine(static_cast<DRW_MLine*>(e));
+        break;
+    case DRW::WIPEOUT:
+        dxfW->writeWipeout(static_cast<DRW_Image*>(e));
+        break;
     case DRW::ACAD_PROXY_ENTITY:
         dxfW->writeProxyEntity(static_cast<DRW_ProxyEntity*>(e));
         break;

@@ -56,7 +56,8 @@ namespace DRW {
         LINE,
         LWPOLYLINE,
 //        MESH,
-//        MLINE,
+        MLINE,
+        WIPEOUT,
 //        MLEADERSTYLE,
 //        MLEADER,
         MTEXT,
@@ -185,8 +186,27 @@ class DRW_ProxyEntity : public DRW_Entity {
 public:
     DRW_ProxyEntity() { eType = DRW::ACAD_PROXY_ENTITY; }
     void applyExtrusion() override {} // The cache already uses WCS coordinates.
+    int sourceClass = 500; // MULTILEADER, ARC_DIMENSION, or ACAD_TABLE
     std::vector<duint32> sourceLayers;
     std::vector<duint32> sourceLinetypes;
+protected:
+    bool parseDwg(DRW::Version version, dwgBuffer *buf, duint32 bs=0) override;
+};
+
+class DRW_MLine : public DRW_Entity {
+    SETENTFRIENDS
+public:
+    struct Vertex {
+        DRW_Coord point, direction, miter;
+        std::vector<std::vector<double>> segments, fills;
+    };
+    DRW_MLine() { eType = DRW::MLINE; }
+    void applyExtrusion() override {} // MLINE coordinates are WCS.
+    double scale = 1;
+    int justification = 0, flags = 1, lineCount = 0;
+    DRW_Coord basePoint, extrusion;
+    duint32 styleHandle = 0;
+    std::vector<Vertex> vertices;
 protected:
     bool parseDwg(DRW::Version version, dwgBuffer *buf, duint32 bs=0) override;
 };
@@ -1016,6 +1036,9 @@ public:
     int brightness;            /*!< Brightness value, code 281, (0-100) default 50 */
     int contrast;              /*!< Brightness value, code 282, (0-100) default 50 */
     int fade;                  /*!< Brightness value, code 283, (0-100) default 0 */
+    int displayProps = 7, clipType = 2;
+    bool clipMode = false;
+    std::vector<DRW_Coord> clipVertices;
 
 };
 
