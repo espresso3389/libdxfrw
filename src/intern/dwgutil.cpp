@@ -170,14 +170,14 @@ bool dwgCompressor::decompress18(duint8 *cbuf, duint8 *dbuf, duint64 csize, duin
 
     while (buffersGood()) {
         duint8 oc = compressedByte(); //next opcode
-        if (oc == 0x10){
-            compBytes = longCompressionOffset()+ 9;
-            compOffset = twoByteOffset(&litCount) + 0x3FFF;
-            if (litCount == 0)
-                litCount= litLength18();
-        } else if (oc > 0x11 && oc< 0x20){
-            compBytes = (oc & 0x0F) + 2;
-            compOffset = twoByteOffset(&litCount) + 0x3FFF;
+        if (oc >= 0x10 && oc < 0x20 && oc != 0x11){
+            // Bits 0-2 hold the length (0: long form) and bit 3 the offset's
+            // 0x4000 bit. Back-references beyond 32 KiB occur only in large
+            // pages, such as the section page map of a 50 MB drawing.
+            compBytes = (oc & 0x07) + 2;
+            if (compBytes == 2)
+                compBytes = longCompressionOffset() + 9;
+            compOffset = ((oc & 0x08) << 11) + twoByteOffset(&litCount) + 0x3FFF;
             if (litCount == 0)
                 litCount= litLength18();
         } else if (oc == 0x20){
