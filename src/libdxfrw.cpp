@@ -716,17 +716,30 @@ bool dxfRW::writeAppId(DRW_AppId *ent){
     return true;
 }
 
+// OCS entities keep their extrusion (and thickness); without it a profile drawn in a vertical plane
+// is read back flat in the XY plane at its elevation.
+static void writeExtrusion(dxfWriter *writer, const DRW_Coord &extrusion) {
+    if (extrusion.x != 0.0 || extrusion.y != 0.0 || extrusion.z != 1.0) {
+        writer->writeDouble(210, extrusion.x);
+        writer->writeDouble(220, extrusion.y);
+        writer->writeDouble(230, extrusion.z);
+    }
+}
+
 bool dxfRW::writePoint(DRW_Point *ent) {
     writer->writeString(0, "POINT");
     writeEntity(ent);
     if (version > DRW::AC1009) {
         writer->writeString(100, "AcDbPoint");
     }
+    if (ent->thickness != 0.0)
+        writer->writeDouble(39, ent->thickness);
     writer->writeDouble(10, ent->basePoint.x);
     writer->writeDouble(20, ent->basePoint.y);
     if (ent->basePoint.z != 0.0) {
         writer->writeDouble(30, ent->basePoint.z);
     }
+    writeExtrusion(writer.get(), ent->extPoint);
     return true;
 }
 
@@ -800,12 +813,15 @@ bool dxfRW::writeCircle(DRW_Circle *ent) {
     if (version > DRW::AC1009) {
         writer->writeString(100, "AcDbCircle");
     }
+    if (ent->thickness != 0.0)
+        writer->writeDouble(39, ent->thickness);
     writer->writeDouble(10, ent->basePoint.x);
     writer->writeDouble(20, ent->basePoint.y);
     if (ent->basePoint.z != 0.0) {
         writer->writeDouble(30, ent->basePoint.z);
     }
     writer->writeDouble(40, ent->radious);
+    writeExtrusion(writer.get(), ent->extPoint);
     return true;
 }
 
@@ -815,12 +831,15 @@ bool dxfRW::writeArc(DRW_Arc *ent) {
     if (version > DRW::AC1009) {
         writer->writeString(100, "AcDbCircle");
     }
+    if (ent->thickness != 0.0)
+        writer->writeDouble(39, ent->thickness);
     writer->writeDouble(10, ent->basePoint.x);
     writer->writeDouble(20, ent->basePoint.y);
     if (ent->basePoint.z != 0.0) {
         writer->writeDouble(30, ent->basePoint.z);
     }
     writer->writeDouble(40, ent->radious);
+    writeExtrusion(writer.get(), ent->extPoint);
     if (version > DRW::AC1009) {
         writer->writeString(100, "AcDbArc");
     }
@@ -844,6 +863,7 @@ bool dxfRW::writeEllipse(DRW_Ellipse *ent){
         writer->writeDouble(11, ent->secPoint.x);
         writer->writeDouble(21, ent->secPoint.y);
         writer->writeDouble(31, ent->secPoint.z);
+        writeExtrusion(writer.get(), ent->extPoint);
         writer->writeDouble(40, ent->ratio);
         writer->writeDouble(41, ent->staparam);
         writer->writeDouble(42, ent->endparam);
@@ -862,6 +882,8 @@ bool dxfRW::writeTrace(DRW_Trace *ent){
     if (version > DRW::AC1009) {
         writer->writeString(100, "AcDbTrace");
     }
+    if (ent->thickness != 0.0)
+        writer->writeDouble(39, ent->thickness);
     writer->writeDouble(10, ent->basePoint.x);
     writer->writeDouble(20, ent->basePoint.y);
     writer->writeDouble(30, ent->basePoint.z);
@@ -874,6 +896,7 @@ bool dxfRW::writeTrace(DRW_Trace *ent){
     writer->writeDouble(13, ent->fourPoint.x);
     writer->writeDouble(23, ent->fourPoint.y);
     writer->writeDouble(33, ent->fourPoint.z);
+    writeExtrusion(writer.get(), ent->extPoint);
     return true;
 }
 
@@ -883,6 +906,8 @@ bool dxfRW::writeSolid(DRW_Solid *ent){
     if (version > DRW::AC1009) {
         writer->writeString(100, "AcDbTrace");
     }
+    if (ent->thickness != 0.0)
+        writer->writeDouble(39, ent->thickness);
     writer->writeDouble(10, ent->basePoint.x);
     writer->writeDouble(20, ent->basePoint.y);
     writer->writeDouble(30, ent->basePoint.z);
@@ -895,6 +920,7 @@ bool dxfRW::writeSolid(DRW_Solid *ent){
     writer->writeDouble(13, ent->fourPoint.x);
     writer->writeDouble(23, ent->fourPoint.y);
     writer->writeDouble(33, ent->fourPoint.z);
+    writeExtrusion(writer.get(), ent->extPoint);
     return true;
 }
 
@@ -946,6 +972,7 @@ bool dxfRW::writeLWPolyline(DRW_LWPolyline *ent){
             if (v->bulge != 0)
                 writer->writeDouble(42, v->bulge);
         }
+        writeExtrusion(writer.get(), ent->extPoint);
     } else {
         //RLZ: TODO convert lwpolyline in polyline (not exist in acad 12)
     }
