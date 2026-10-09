@@ -416,27 +416,49 @@ bool dwgReader18::readFileHeader() {
 bool dwgReader18::readDwgHeader(DRW_Header& hdr){
     // Modern DWG stores modeler data separately from REGION entities.
     // Preserve the bounded raw datastore for the standalone preview adapter.
+    // A large datastore is sparse: each page sits at its own start offset and
+    // the gaps between pages read as zeros, so pages are placed one by one.
     const auto acds = sections.find(secEnum::PROTOTYPE);
     if (acds != sections.end()) {
         const auto& section = acds->second;
-        constexpr duint32 limit = 64 * 1024 * 1024;
-        bool bounded = section.maxSize > 0 && section.maxSize <= limit
-            && section.pageCount > 0 && section.pageCount <= limit / section.maxSize;
-        if (bounded) {
-            const duint32 allocated = section.pageCount * section.maxSize;
-            bounded = section.size <= allocated && section.pages.size() == section.pageCount;
-            std::vector<duint64> offsets;
-            for (const auto& page : section.pages) offsets.push_back(page.second.startOffset);
-            std::sort(offsets.begin(), offsets.end());
-            for (size_t i = 0; i < offsets.size(); ++i) {
-                // Require contiguous complete pages before copying any bytes.
-                bounded = bounded && offsets[i] == i * section.maxSize;
+        constexpr duint64 limit = 256 * 1024 * 1024;
+        std::vector<dwgPageInfo> pages;
+        for (const auto& page : section.pages) pages.push_back(page.second);
+        std::sort(pages.begin(), pages.end(), [](const dwgPageInfo& a, const dwgPageInfo& b) {
+            return a.startOffset < b.startOffset;
+        });
+        bool bounded = section.size > 0 && section.size <= limit && section.maxSize > 0
+            && section.maxSize <= 1024 * 1024 && !pages.empty() && pages.size() == section.pageCount;
+        for (size_t i = 0; bounded && i < pages.size(); ++i) {
+            // Pages may not overlap; only the last may run past the section's end.
+            bounded = pages[i].startOffset < section.size
+                && (i + 1 == pages.size() || pages[i].startOffset + section.maxSize <= pages[i + 1].startOffset);
+        }
+        auto data = bounded ? std::make_shared<std::vector<duint8>>(section.size, 0) : nullptr;
+        std::vector<duint8> page(bounded ? section.maxSize : 0);
+        for (size_t i = 0; data && i < pages.size(); ++i) {
+            duint8 header[32];
+            if (!fileBuf->setPosition(pages[i].address) || !fileBuf->getBytes(header, 32)) {
+                data.reset();
+                break;
             }
+            dwgCompressor::decrypt18Hdr(header, 32, pages[i].address);
+            dwgBuffer headerBuf(header, 32, &decoder);
+            headerBuf.getRawLong32();
+            headerBuf.getRawLong32();
+            const duint32 compressed = headerBuf.getRawLong32();
+            std::vector<duint8> input(compressed);
+            dwgCompressor comp;
+            if (compressed == 0 || compressed > fileBuf->size() || !fileBuf->setPosition(pages[i].address + 32)
+                    || !fileBuf->getBytes(input.data(), compressed)
+                    || !comp.decompress18(input.data(), page.data(), compressed, section.maxSize)) {
+                data.reset();
+                break;
+            }
+            const duint64 count = std::min<duint64>(section.maxSize, section.size - pages[i].startOffset);
+            std::copy(page.begin(), page.begin() + count, data->begin() + pages[i].startOffset);
         }
-        if (bounded && parseDataPage(section)) {
-            hdr.acdsData = std::make_shared<std::vector<duint8>>(
-                objData.get(), objData.get() + section.size);
-        }
+        hdr.acdsData = data;
     }
     DRW_DBG("dwgReader18::readDwgHeader\n");
     dwgSectionInfo si = sections[secEnum::HEADER];
