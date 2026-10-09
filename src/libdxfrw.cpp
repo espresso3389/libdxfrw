@@ -749,6 +749,8 @@ bool dxfRW::writeLine(DRW_Line *ent) {
     if (version > DRW::AC1009) {
         writer->writeString(100, "AcDbLine");
     }
+    if (ent->thickness != 0.0)
+        writer->writeDouble(39, ent->thickness);
     writer->writeDouble(10, ent->basePoint.x);
     writer->writeDouble(20, ent->basePoint.y);
     if (ent->basePoint.z != 0.0 || ent->secPoint.z != 0.0) {
@@ -760,6 +762,7 @@ bool dxfRW::writeLine(DRW_Line *ent) {
         writer->writeDouble(11, ent->secPoint.x);
         writer->writeDouble(21, ent->secPoint.y);
     }
+    writeExtrusion(writer.get(), ent->extPoint);
     return true;
 }
 
@@ -1288,6 +1291,18 @@ bool dxfRW::writeLeader(DRW_Leader *ent){
             writer->writeDouble(20, vert->y);
             writer->writeDouble(30, vert->z);
         }
+        // The annotation plane and its horizontal direction orient the leader's text and hook line.
+        writeExtrusion(writer.get(), ent->extrusionPoint);
+        auto vector = [this](int code, const DRW_Coord& v) {
+            if (v.x != 0.0 || v.y != 0.0 || v.z != 0.0) {
+                writer->writeDouble(code, v.x);
+                writer->writeDouble(code + 10, v.y);
+                writer->writeDouble(code + 20, v.z);
+            }
+        };
+        vector(211, ent->horizdir);
+        vector(212, ent->offsetblock);
+        vector(213, ent->offsettext);
     } else  {
         //RLZ: todo not supported by acad 12 saved as unnamed block
     }
